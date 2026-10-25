@@ -1,6 +1,5 @@
-# NOT ENABLED YET: there is no remote and Pages is off. Wade must okay the repo first.
 # Once enabled, a push to main publishes dist/ to GitHub Pages. Work on a branch, merge to main to deploy.
-# Set the repo variable VITE_GOOGLE_CLIENT_ID (Settings > Variables) before the first deploy.
+# Repo variables VITE_GOOGLE_CLIENT_ID and VITE_SHEET_ID (Settings > Variables) are baked in at build time.
 name: Deploy to GitHub Pages
 
 on:
@@ -29,6 +28,7 @@ jobs:
       - run: npm run check
         env:
           VITE_GOOGLE_CLIENT_ID: ${{ vars.VITE_GOOGLE_CLIENT_ID }}
+          VITE_SHEET_ID: ${{ vars.VITE_SHEET_ID }}
       - uses: actions/upload-pages-artifact@v3
         with:
           path: dist

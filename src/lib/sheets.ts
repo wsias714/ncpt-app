@@ -6,8 +6,8 @@ import type { Grid } from "./parse.ts";
 import { CODES_TAB } from "./names.ts";
 import type { Who } from "./who.ts";
 
-export const SHEET_ID: string =
-  (import.meta.env.VITE_SHEET_ID as string | undefined) || "1N-9EZAVjsnQ5Xr9BePLTVzrQwrLZMvSH3DzihLlFsIY";
+// Set at build time (repo variable VITE_SHEET_ID, or .env.local); deliberately not in the source.
+export const SHEET_ID: string = (import.meta.env.VITE_SHEET_ID as string | undefined) ?? "";
 
 export const TABS = [
   "App Summary", "App Transactions", "App Monthly", "App Invoices", "App Decisions",
