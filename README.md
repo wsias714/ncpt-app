@@ -1,8 +1,17 @@
 # NCPT Books app
 
-Phone-first PWA (React + Vite + TypeScript) that is a front end to the NCPT Books Google Sheet. Screens: Today (cash profit, wages, invoices, needs booking, last 7 days, balances), Transactions (search/filters, booking sheet), Reports (income statement, balance sheet, trend charts), Unpaid. It reads only the masked, app-ready tabs `App Summary`, `App Transactions`, `App Monthly`, `App Invoices`, `App Decisions`, `P&L`, `Balance Sheet`, `Accounts` (missing tabs show empty states). The only write is an appended row on `App Decisions` (Entry, Account, Note, Who, When); Python applies it at the next publish. Raw `Invoices`, `Journal`, `Customers`, `Payers`, `Review` are never read. Target state and decisions: `~/Projects/CFO/ncpt_books/docs/MOBILE-APP-PLAN.md`.
+Phone-first PWA (React + Vite + TypeScript) that is a front end to the NCPT Books Google Sheet. Screens: Today (cash profit, wages, invoices, needs booking, last 7 days, balances), Transactions (search/filters, booking sheet), Reports (income statement, balance sheet, trend charts), Unpaid. It reads only the masked, app-ready tabs `App Summary`, `App Transactions`, `App Monthly`, `App Invoices`, `App Decisions`, `P&L`, `Balance Sheet`, `Accounts` (missing tabs show empty states). The only write is an appended row on `App Decisions` (Entry, Account, Note, Who, When); Python applies it at the next publish. Raw `Invoices`, `Journal`, `Customers`, `Payers`, `Review` are never read. The only other tab read is `Customer Codes` (names, see below), and only when names are on. Target state and decisions: `~/Projects/CFO/ncpt_books/docs/MOBILE-APP-PLAN.md`.
 
-The app never sends, pays or files anything, and holds no patient identifiers. Customers appear as codes ("Customer V") only.
+The app never sends, pays or files anything, and holds no patient identifiers in code, repo, fixtures or build output. Data tabs carry codes ("Customer V") only.
+
+## Customer names (runtime only)
+
+Names are displayed from the user's own Google Sheet at runtime and nowhere else. After sign-in the browser reads the tab `Customer Codes` (header `[Customer, Code]`, Customer like "Last, First & First", Code like "Customer V") and keeps code -> "First Last" in memory only. Every screen then substitutes names for codes (invoices, Today, transaction descriptions; search matches names and codes). Unmapped codes stay as codes.
+
+- Header toggle "Names on/off", default on. Only that boolean (`ncpt.names`) is saved in localStorage.
+- `?names=off` forces names off for that page load, ignores the saved preference, hides the toggle and never fetches `Customer Codes`.
+- Names are cleared on sign out or reload. They never touch localStorage, IndexedDB, logs or the service worker cache.
+- AI tools and automated tests driving the app must always open it with `?names=off`, and must not screenshot or read pages with names on.
 
 ## Run
 

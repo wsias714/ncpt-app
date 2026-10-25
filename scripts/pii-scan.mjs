@@ -11,7 +11,7 @@ const RULES = [
   ["phone number", /(?<![\d.])\(?\d{3}\)?[-. ]\d{3}[-. ]\d{4}(?![\d.])/],
   ["street address", /\b\d{1,5} [A-Z][a-z]+ (Street|St|Avenue|Ave|Road|Rd|Boulevard|Blvd|Drive|Dr|Lane|Ln)\b/],
   ["date of birth", /\b(DOB|date of birth)\b/i],
-  ["named customer (code must be 1-3 caps)", /\bCustomer [A-Z][a-z]{2,}\b/],
+  ["named customer (code must be 1-3 caps)", /\bCustomer (?!Codes\b)[A-Z][a-z]{2,}\b/],
   ["Google secret/key", /GOCSPX-[\w-]+|AIza[\w-]{30,}/],
 ];
 

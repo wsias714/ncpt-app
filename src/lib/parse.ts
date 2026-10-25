@@ -168,7 +168,7 @@ export interface TxFilter {
 }
 export const NO_FILTER: TxFilter = { query: "", account: "", month: "", reviewOnly: false, code: "" };
 
-export function filterTransactions(txs: Tx[], f: TxFilter, latest: Map<string, Decision>): Tx[] {
+export function filterTransactions(txs: Tx[], f: TxFilter, latest: Map<string, Decision>, label: (t: string) => string = (t) => t): Tx[] {
   const q = f.query.trim().toLowerCase();
   return txs.filter((t) => {
     if (f.account && t.account !== f.account) return false;
@@ -176,7 +176,7 @@ export function filterTransactions(txs: Tx[], f: TxFilter, latest: Map<string, D
     if (f.reviewOnly && !needsBooking(t, latest)) return false;
     if (f.code && t.code !== f.code) return false;
     if (q) {
-      const hay = `${t.description} ${t.category} ${t.code} ${t.amount.toFixed(2)}`.toLowerCase();
+      const hay = `${t.description} ${label(t.description)} ${t.category} ${t.code} ${t.amount.toFixed(2)}`.toLowerCase();
       if (!hay.includes(q)) return false;
     }
     return true;

@@ -14,6 +14,10 @@ GitHub Pages from `main` via `.github/workflows/deploy.yml`. NOT enabled: there 
 - Sheet data lives in per-session memory only. Never put sheet data in localStorage or IndexedDB (until phase 5, codes and amounts only).
 - Tab layouts come from `~/Projects/CFO/ncpt_books/publish.py` and `close.py`. The generated tabs are rebuilt by `ncpt_books`; the app never edits them. Writes (later phases) go only to input tabs.
 
+## Customer names (runtime only)
+- Names are displayed from the user's own Google Sheet (`Customer Codes` tab, [Customer, Code]) at runtime only, held in memory for the session (`src/lib/names.ts`). Never in code, repo, fixtures (made-up "Doe, Pat" names only), build output, localStorage/IndexedDB or logs. Only the `ncpt.names` boolean preference is stored.
+- AI tools driving the app MUST always open it with `?names=off` (e.g. `http://localhost:5173/?names=off`). That skips the `Customer Codes` fetch entirely. Never screenshot or read a page that has names on. Do not read the `Customers`, `Payers`, `Journal` or `Review` tabs.
+
 ## Rules
 - The app never sends email, pays, or files anything. It drafts, records and queues; a person executes.
 - No patient identifiers (names, emails, phones, addresses, clinical info) in the repo, fixtures, tests, logs, storage or screenshots. Use codes ("Customer V") and made-up numbers.

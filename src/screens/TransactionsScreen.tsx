@@ -1,3 +1,4 @@
+import { useLabel } from "../components/NamesContext.tsx";
 import { TxRow } from "../components/TxRow.tsx";
 import type { Model } from "../lib/model.ts";
 import { filterTransactions, txCategories, txMonths, type Tx, type TxFilter } from "../lib/parse.ts";
@@ -7,7 +8,8 @@ interface Props { m: Model; filter: TxFilter; setFilter: (f: TxFilter) => void; 
 const LIMIT = 200;
 
 export function TransactionsScreen({ m, filter, setFilter, openTx }: Props) {
-  const rows = filterTransactions(m.txs, filter, m.latest);
+  const label = useLabel();
+  const rows = filterTransactions(m.txs, filter, m.latest, label);
   const set = (p: Partial<TxFilter>) => setFilter({ ...filter, ...p });
   const cats = txCategories(m.txs);
   const active = filter.account || filter.month || filter.code || filter.reviewOnly || filter.query;

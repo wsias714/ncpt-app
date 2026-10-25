@@ -1,5 +1,7 @@
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { BookingSheet } from "./components/BookingSheet.tsx";
+import { NamesContext } from "./components/NamesContext.tsx";
+import { loadNameMap, makeLabeler, namesEnabled, namesForcedOff, NO_NAMES, saveNamesPref, savedNamesPref, type NameMap } from "./lib/names.ts";
 import { clientIdConfigured, getToken, signIn, signOut } from "./lib/auth.ts";
 import { buildModel } from "./lib/model.ts";
 import { NO_FILTER, type Decision, type Tx, type TxFilter } from "./lib/parse.ts";
@@ -26,6 +28,22 @@ export function App() {
   const [filter, setFilter] = useState<TxFilter>(NO_FILTER);
   const [booking, setBooking] = useState<Tx | null>(null);
   const [sent, setSent] = useState<Decision[]>([]); // this session only, memory
+  // ?names=off (AI/test tooling) forces names off for this page load and hides the toggle.
+  const forcedOff = namesForcedOff(window.location.search);
+  const [namesPref, setNamesPref] = useState(() => savedNamesPref());
+  const namesOn = namesEnabled(window.location.search, namesPref);
+  const [nameMap, setNameMap] = useState<NameMap>(NO_NAMES); // code -> display name, memory only
+
+  useEffect(() => {
+    let live = true;
+    if (!signedIn || !namesOn) { setNameMap(NO_NAMES); return; }
+    loadNameMap(namesOn, () => reader.readCustomerCodes())
+      .then((m) => { if (live) setNameMap(m); })
+      .catch(() => { if (live) setNameMap(NO_NAMES); }); // codes shown on any failure
+    return () => { live = false; };
+  }, [signedIn, namesOn]);
+  const label = useMemo(() => makeLabeler(namesOn ? nameMap : NO_NAMES), [namesOn, nameMap]);
+  const toggleNames = () => { const next = !namesPref; setNamesPref(next); saveNamesPref(next); };
 
   const load = useCallback(async (force: boolean) => {
     setBusy(true); setError("");
@@ -42,7 +60,7 @@ export function App() {
     try { await signIn(); setSignedIn(true); await load(true); }
     catch (e) { setError(e instanceof Error ? e.message : "Sign-in failed"); }
   };
-  const doSignOut = () => { signOut(); reader.clear(); setTabs(null); setSignedIn(false); setSent([]); };
+  const doSignOut = () => { signOut(); reader.clear(); setNameMap(NO_NAMES); setTabs(null); setSignedIn(false); setSent([]); };
 
   const model = useMemo(() => (tabs ? buildModel(tabs, todayIso(), sent) : null), [tabs, sent]);
 
@@ -86,10 +104,14 @@ export function App() {
   const filterByCode = (code: string) => { setFilter({ ...NO_FILTER, code }); go("tx"); };
 
   return (
+    <NamesContext.Provider value={label}>
     <div className="shell">
       <header>
         <strong>NCPT Books</strong>
         <span className="muted">{who}</span>
+        {forcedOff
+          ? <span className="muted">Names off</span>
+          : <button className="link" onClick={toggleNames} aria-pressed={namesOn}>Names {namesOn ? "on" : "off"}</button>}
         <button className="link" onClick={() => load(true)} disabled={busy}>{busy ? "..." : "Refresh"}</button>
         <button className="link" onClick={doSignOut}>Sign out</button>
       </header>
@@ -110,5 +132,6 @@ export function App() {
           onSave={(account, note) => saveDecision(booking, account, note)} onClose={() => setBooking(null)} />
       )}
     </div>
+    </NamesContext.Provider>
   );
 }

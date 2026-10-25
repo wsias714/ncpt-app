@@ -1,7 +1,9 @@
+import { useLabel } from "../components/NamesContext.tsx";
 import { invoiceStats, money, type ArItem } from "../lib/parse.ts";
 
-// Codes only. Customer names never reach the browser (App Invoices is pre-masked).
+// App Invoices is pre-masked (codes); names are substituted in memory only when names are on.
 function Group({ title, items }: { title: string; items: ArItem[] }) {
+  const label = useLabel();
   if (items.length === 0) return null;
   return (
     <>
@@ -10,7 +12,7 @@ function Group({ title, items }: { title: string; items: ArItem[] }) {
         {items.map((i) => (
           <li key={i.number} className="row">
             <div>
-              <strong>{i.code}</strong>
+              <strong>{label(i.code)}</strong>
               <div className="sub">Invoice {i.number} - {i.status}{i.due ? ` - due ${i.due}` : ""}</div>
             </div>
             <div className="right">

@@ -1,7 +1,9 @@
 // Sheets REST reader plus the app's single write path (append to `App Decisions`).
 // Per-session in-memory cache only: nothing is written to localStorage or IndexedDB.
+// `Customer Codes` is read separately, only when names are on, into memory only.
 // The raw `Invoices`, `Journal`, `Customers`, `Payers` and `Review` tabs are never read.
 import type { Grid } from "./parse.ts";
+import { CODES_TAB } from "./names.ts";
 import type { Who } from "./who.ts";
 
 export const SHEET_ID: string =
@@ -75,6 +77,12 @@ export function createReader(
       }
       cache = out;
       return out;
+    },
+    // Runtime-only name lookup: one tab, header [Customer, Code]. Missing tab = empty (codes shown).
+    async readCustomerCodes(): Promise<Grid> {
+      const res = await fetchFn(tabUrl(sheetId, CODES_TAB), { headers: auth() });
+      if (res.status === 401) throw new AuthExpiredError("Sign-in expired");
+      return res.ok ? (((await res.json()) as { values?: Grid }).values ?? []) : [];
     },
     // The app's only write: one appended row on App Decisions.
     async appendDecision(row: string[]): Promise<void> {

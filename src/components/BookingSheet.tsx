@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useLabel } from "./NamesContext.tsx";
 import { accountPickerOrder, money, type Account, type Decision, type Tx } from "../lib/parse.ts";
 
 interface Props {
@@ -10,6 +11,7 @@ interface Props {
 }
 
 export function BookingSheet({ tx, accounts, latest, onSave, onClose }: Props) {
+  const label = useLabel();
   const [account, setAccount] = useState(latest?.account ?? tx.code);
   const [note, setNote] = useState("");
   const [busy, setBusy] = useState(false);
@@ -32,7 +34,7 @@ export function BookingSheet({ tx, accounts, latest, onSave, onClose }: Props) {
       <div className="sheet" role="dialog" aria-modal="true" aria-label="Book transaction" onClick={(e) => e.stopPropagation()}>
         <div className="row">
           <div>
-            <strong>{tx.description || "(no description)"}</strong>
+            <strong>{label(tx.description) || "(no description)"}</strong>
             <div className="sub">{tx.date} - {tx.account}</div>
           </div>
           <div className="right"><strong className={tx.amount < 0 ? "" : "pos"}>{money(tx.amount)}</strong></div>
