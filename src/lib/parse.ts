@@ -1,6 +1,6 @@
-// Pure parsers for the NCPT Books Sheet tabs (layouts: CFO/ncpt_books/publish.py and close.py).
-// Input is the raw `values` grid from the Sheets API. Customer names are never read: only a
-// short code like "Customer V" is passed through, anything else collapses to UNLABELED.
+// Pure parsers for the app-ready tabs published by CFO/ncpt_books (publish.py). Input is the raw
+// `values` grid from the Sheets API. Every parser tolerates a missing or empty tab (returns an
+// empty result). Customer names are never read: only codes like "Customer V" pass through.
 
 export type Grid = unknown[][];
 
@@ -19,107 +19,21 @@ export function toNumber(v: unknown): number | null {
   return neg ? -n : n;
 }
 
-const text = (v: unknown): string => (v === null || v === undefined ? "" : String(v).trim());
+export const text = (v: unknown): string => (v === null || v === undefined ? "" : String(v).trim());
 
 export function customerCode(v: unknown): string {
   const s = text(v);
   return CODE_RE.test(s) ? s : UNLABELED;
 }
 
-export interface Dashboard {
-  asOf: string;
-  cash: number | null;
-  card: number | null; // positive = owed on the card
-  ar: number | null;
-  ytdNetCash: number | null;
-  ytdNetAccrual: number | null;
-  lastClosedMonth: string;
-  monthsReadyToLock: string;
-  bankRecThrough: string;
-  entriesToReview: number | null;
-  closeBlockers: string[]; // empty when "none"
-}
-
-function byLabel(grid: Grid): Map<string, unknown[]> {
-  const m = new Map<string, unknown[]>();
-  for (const row of grid) {
-    const label = text(row[0]);
-    if (label && !m.has(label)) m.set(label, row);
+// Accepts ISO strings, ISO datetimes, or a Sheets serial day number.
+export function toIsoDate(v: unknown): string {
+  if (typeof v === "number" && Number.isFinite(v)) {
+    return new Date(Math.round((v - 25569) * 86_400_000)).toISOString().slice(0, 10);
   }
-  return m;
+  const s = text(v);
+  return /^\d{4}-\d{2}-\d{2}/.test(s) ? s.slice(0, 10) : s;
 }
-
-export function parseDashboard(grid: Grid): Dashboard {
-  const rows = byLabel(grid);
-  const find = (pred: (l: string) => boolean): unknown[] | undefined => {
-    for (const [l, r] of rows) if (pred(l)) return r;
-    return undefined;
-  };
-  const num = (pred: (l: string) => boolean) => toNumber(find(pred)?.[1]);
-  const str = (pred: (l: string) => boolean) => text(find(pred)?.[1]);
-  const title = grid[0] ?? [];
-  const blockersRaw = str((l) => l === "Close blockers");
-  return {
-    asOf: text(title[1]).replace(/^as of\s*/i, ""),
-    cash: num((l) => l.startsWith("Cash")),
-    card: num((l) => l.startsWith("Credit card")),
-    ar: num((l) => l === "Accounts receivable"),
-    ytdNetCash: num((l) => /YTD net income, cash/.test(l)),
-    ytdNetAccrual: num((l) => /YTD net income, accrual/.test(l)),
-    lastClosedMonth: str((l) => l === "Last closed month"),
-    monthsReadyToLock: str((l) => l === "Months ready to lock"),
-    bankRecThrough: str((l) => l === "Bank rec through"),
-    entriesToReview: num((l) => l === "Entries to review"),
-    closeBlockers: !blockersRaw || blockersRaw === "none" ? [] : blockersRaw.split(";").map((s) => s.trim()).filter(Boolean),
-  };
-}
-
-export interface CloseMonth {
-  month: string;
-  status: string; // LOCKED | READY TO LOCK | BLOCKED
-  blockers: string[];
-  locked: boolean;
-}
-
-export interface Close {
-  months: CloseMonth[];
-  arDifference: number | null;
-}
-
-export function parseClose(grid: Grid): Close {
-  const months: CloseMonth[] = [];
-  let arDifference: number | null = null;
-  let section: "months" | "other" = "months";
-  for (let i = 1; i < grid.length; i++) {
-    const row = grid[i] ?? [];
-    const first = text(row[0]);
-    if (!first) { section = "other"; continue; }
-    if (section === "months" && /^\d{4}-\d{2}$/.test(first)) {
-      months.push({
-        month: first,
-        status: text(row[5]),
-        blockers: text(row[3]).split(";").map((s) => s.trim()).filter(Boolean),
-        locked: text(row[6]).toLowerCase() === "yes",
-      });
-    } else if (first === "AR") {
-      const data = grid[i + 1] ?? [];
-      arDifference = toNumber(data[5]);
-    }
-  }
-  return { months, arDifference };
-}
-
-export interface ArItem {
-  number: string;
-  code: string;
-  invoiceDate: string;
-  due: string;
-  amount: number;
-  status: string;
-  ageDays: number | null;
-}
-
-const CLOSED_STATUS = /^(paid|void|voided|draft|cancelled|canceled)$/i;
 
 export function daysBetween(fromIso: string, today: string): number | null {
   const a = Date.parse(fromIso + "T00:00:00Z");
@@ -128,39 +42,313 @@ export function daysBetween(fromIso: string, today: string): number | null {
   return Math.round((b - a) / 86_400_000);
 }
 
-// Reads the Invoices tab by header name; the "Customer" column is reduced to a code.
-export function parseInvoices(grid: Grid, today: string): ArItem[] {
-  const head = (grid[0] ?? []).map(text);
-  const col = (name: string) => head.indexOf(name);
-  const iNum = col("Number"), iCust = col("Customer"), iDate = col("Invoice date");
-  const iDue = col("Due"), iTotal = col("Total"), iStatus = col("Status");
-  if ([iNum, iCust, iDate, iTotal, iStatus].some((i) => i < 0)) return [];
-  const out: ArItem[] = [];
-  for (const row of grid.slice(1)) {
-    const number = text(row[iNum]);
-    const amount = toNumber(row[iTotal]);
-    const status = text(row[iStatus]);
-    if (!number || amount === null || CLOSED_STATUS.test(status)) continue;
-    const invoiceDate = text(row[iDate]);
-    out.push({
-      number,
-      code: customerCode(row[iCust]),
-      invoiceDate,
-      due: iDue >= 0 ? text(row[iDue]) : "",
-      amount,
-      status,
-      ageDays: daysBetween(invoiceDate, today),
-    });
-  }
-  return out.sort((a, b) => (b.ageDays ?? -1) - (a.ageDays ?? -1));
-}
-
-export function totalOpen(items: ArItem[]): number {
-  return Math.round(items.reduce((s, i) => s + i.amount, 0) * 100) / 100;
-}
-
 export function money(n: number | null): string {
   if (n === null) return "n/a";
   const s = Math.abs(n).toLocaleString("en-US", { style: "currency", currency: "USD" });
   return n < 0 ? `-${s}` : s;
+}
+
+const round2 = (n: number) => Math.round(n * 100) / 100;
+const dataRows = (grid: Grid): unknown[][] => grid.slice(1).filter((r) => Array.isArray(r) && r.some((c) => text(c) !== ""));
+
+// ---- App Summary ------------------------------------------------------------------------
+
+export interface Summary {
+  built: string;
+  asOf: string;
+  profitMtd: number | null;
+  profitLastMonth: number | null;
+  profitYtd: number | null;
+  wagesGrossYtd: number | null;
+  payrollTaxesYtd: number | null;
+  matchYtd: number | null;
+  payrollLiab: number | null;
+  cash: number | null;
+  cardOwed: number | null;
+  ar: number | null;
+  mileageOwed: number | null;
+  mileageDue: string;
+  lastClosedMonth: string;
+  closeBlockers: string[]; // empty when "none"
+  needsBooking: number | null;
+  present: boolean;
+}
+
+export function parseSummary(grid: Grid): Summary {
+  const kv = new Map<string, unknown>();
+  for (const row of dataRows(grid)) kv.set(text(row[0]), row[1]);
+  const n = (k: string) => toNumber(kv.get(k));
+  const blockers = text(kv.get("close_blockers"));
+  return {
+    built: text(kv.get("built")),
+    asOf: toIsoDate(kv.get("as_of")),
+    profitMtd: n("profit_mtd"),
+    profitLastMonth: n("profit_last_month"),
+    profitYtd: n("profit_ytd"),
+    wagesGrossYtd: n("wages_gross_ytd"),
+    payrollTaxesYtd: n("payroll_taxes_ytd"),
+    matchYtd: n("match_ytd"),
+    payrollLiab: n("payroll_liab"),
+    cash: n("cash"),
+    cardOwed: n("card_owed"),
+    ar: n("ar"),
+    mileageOwed: n("mileage_owed"),
+    mileageDue: text(kv.get("mileage_due")),
+    lastClosedMonth: text(kv.get("last_closed_month")),
+    closeBlockers: !blockers || blockers.toLowerCase() === "none" ? [] : blockers.split(";").map((s) => s.trim()).filter(Boolean),
+    needsBooking: n("needs_booking"),
+    present: kv.size > 0,
+  };
+}
+
+export function wagesTotal(s: Summary): number | null {
+  const parts = [s.wagesGrossYtd, s.payrollTaxesYtd, s.matchYtd];
+  return parts.every((p) => p === null) ? null : round2(parts.reduce<number>((a, p) => a + (p ?? 0), 0));
+}
+
+// ---- App Transactions + App Decisions ------------------------------------------------------
+
+export interface Tx {
+  entry: string;
+  date: string;
+  account: "Checking" | "Card" | string;
+  amount: number;
+  description: string;
+  code: string;
+  category: string;
+  status: string; // booked | review
+  source: string;
+  locked: boolean; // entry sits in a closed month: no re-booking
+}
+
+export function parseTransactions(grid: Grid): Tx[] {
+  const out: Tx[] = [];
+  for (const r of dataRows(grid)) {
+    const entry = text(r[0]);
+    const amount = toNumber(r[3]);
+    if (!entry || amount === null) continue;
+    out.push({
+      entry, date: toIsoDate(r[1]), account: text(r[2]), amount, description: text(r[4]),
+      code: text(r[5]), category: text(r[6]), status: text(r[7]).toLowerCase(), source: text(r[8]),
+      locked: text(r[9]).toLowerCase() === "yes",
+    });
+  }
+  return out;
+}
+
+export interface Decision { entry: string; account: string; note: string; who: string; when: string }
+
+export function parseDecisions(grid: Grid): Decision[] {
+  return dataRows(grid)
+    .map((r) => ({ entry: text(r[0]), account: text(r[1]), note: text(r[2]), who: text(r[3]), when: text(r[4]) }))
+    .filter((d) => d.entry && d.account);
+}
+
+// Latest row per entry wins (the tab is append-only, so later rows are newer).
+export function latestDecisions(ds: Decision[]): Map<string, Decision> {
+  const m = new Map<string, Decision>();
+  for (const d of ds) m.set(d.entry, d);
+  return m;
+}
+
+export function isPending(tx: Tx, latest: Map<string, Decision>): boolean {
+  const d = latest.get(tx.entry);
+  return !!d && d.account !== tx.code;
+}
+
+export const needsBooking = (tx: Tx, latest: Map<string, Decision>): boolean =>
+  tx.status === "review" && !isPending(tx, latest);
+
+export interface TxFilter {
+  query: string;
+  account: string; // "" | Checking | Card
+  month: string; // "" | YYYY-MM
+  reviewOnly: boolean;
+  code: string; // "" | category code
+}
+export const NO_FILTER: TxFilter = { query: "", account: "", month: "", reviewOnly: false, code: "" };
+
+export function filterTransactions(txs: Tx[], f: TxFilter, latest: Map<string, Decision>): Tx[] {
+  const q = f.query.trim().toLowerCase();
+  return txs.filter((t) => {
+    if (f.account && t.account !== f.account) return false;
+    if (f.month && !t.date.startsWith(f.month)) return false;
+    if (f.reviewOnly && !needsBooking(t, latest)) return false;
+    if (f.code && t.code !== f.code) return false;
+    if (q) {
+      const hay = `${t.description} ${t.category} ${t.code} ${t.amount.toFixed(2)}`.toLowerCase();
+      if (!hay.includes(q)) return false;
+    }
+    return true;
+  });
+}
+
+export function txMonths(txs: Tx[]): string[] {
+  return [...new Set(txs.map((t) => t.date.slice(0, 7)).filter((m) => /^\d{4}-\d{2}$/.test(m)))].sort().reverse();
+}
+
+export function txCategories(txs: Tx[]): { code: string; name: string }[] {
+  const m = new Map<string, string>();
+  for (const t of txs) if (t.code && !m.has(t.code)) m.set(t.code, t.category);
+  return [...m].map(([code, name]) => ({ code, name })).sort((a, b) => a.code.localeCompare(b.code));
+}
+
+export function recentTransactions(txs: Tx[], today: string, days = 7): Tx[] {
+  return txs.filter((t) => {
+    const d = daysBetween(t.date, today);
+    return d !== null && d >= 0 && d < days;
+  });
+}
+
+// ---- App Monthly -----------------------------------------------------------------------------
+
+export interface MonthRow {
+  month: string; income: number; expense: number; netCash: number; netAccrual: number;
+  cashEnd: number; arEnd: number; cardEnd: number;
+}
+
+export function parseMonthly(grid: Grid): MonthRow[] {
+  const out: MonthRow[] = [];
+  for (const r of dataRows(grid)) {
+    const month = text(r[0]).slice(0, 7);
+    if (!/^\d{4}-\d{2}$/.test(month)) continue;
+    const v = (i: number) => toNumber(r[i]) ?? 0;
+    out.push({ month, income: v(1), expense: v(2), netCash: v(3), netAccrual: v(4), cashEnd: v(5), arEnd: v(6), cardEnd: v(7) });
+  }
+  return out.sort((a, b) => a.month.localeCompare(b.month));
+}
+
+// ---- App Invoices ----------------------------------------------------------------------------
+
+export interface ArItem {
+  number: string;
+  code: string;
+  invoiceDate: string;
+  due: string;
+  amount: number;
+  status: "DRAFT" | "SENT" | "PAID" | string;
+  source: string;
+  ageDays: number | null;
+}
+
+export function parseAppInvoices(grid: Grid, today: string): ArItem[] {
+  const out: ArItem[] = [];
+  for (const r of dataRows(grid)) {
+    const number = text(r[0]);
+    const amount = toNumber(r[4]);
+    if (!number || amount === null) continue;
+    const invoiceDate = toIsoDate(r[2]);
+    out.push({
+      number, code: customerCode(r[1]), invoiceDate, due: toIsoDate(r[3]), amount,
+      status: text(r[5]).toUpperCase(), source: text(r[6]), ageDays: daysBetween(invoiceDate, today),
+    });
+  }
+  return out;
+}
+
+export interface InvoiceStats {
+  outstanding: ArItem[]; // SENT, oldest first
+  outstandingTotal: number;
+  overdue: ArItem[];
+  oldestAgeDays: number | null;
+  drafts: ArItem[];
+  draftsTotal: number;
+  paid30: ArItem[]; // PAID, invoice dated in the last 30 days (the tab has no paid date)
+  paid30Total: number;
+}
+
+export function invoiceStats(items: ArItem[], today: string): InvoiceStats {
+  const sum = (xs: ArItem[]) => round2(xs.reduce((s, i) => s + i.amount, 0));
+  const outstanding = items.filter((i) => i.status === "SENT").sort((a, b) => (b.ageDays ?? -1) - (a.ageDays ?? -1));
+  const overdue = outstanding.filter((i) => i.due && i.due < today);
+  const drafts = items.filter((i) => i.status === "DRAFT");
+  const paid30 = items.filter((i) => i.status === "PAID" && i.ageDays !== null && i.ageDays >= 0 && i.ageDays <= 30);
+  return {
+    outstanding, outstandingTotal: sum(outstanding), overdue,
+    oldestAgeDays: outstanding.length ? outstanding[0].ageDays : null,
+    drafts, draftsTotal: sum(drafts), paid30, paid30Total: sum(paid30),
+  };
+}
+
+export function totalOpen(items: ArItem[]): number {
+  return round2(items.reduce((s, i) => s + i.amount, 0));
+}
+
+// ---- Accounts --------------------------------------------------------------------------------
+
+export interface Account { code: string; name: string; type: string; line: string }
+
+export function parseAccounts(grid: Grid): Account[] {
+  return dataRows(grid)
+    .map((r) => ({ code: text(r[0]), name: text(r[1]), type: text(r[2]).toLowerCase(), line: text(r[3]) }))
+    .filter((a) => a.code && a.name);
+}
+
+const TYPE_ORDER: Record<string, number> = { income: 0, expense: 1 };
+// Income and expense codes first (they are what a bank line is booked to), then the rest.
+export function accountPickerOrder(accts: Account[]): Account[] {
+  const rank = (a: Account) => TYPE_ORDER[a.type] ?? 2;
+  return [...accts].sort((a, b) => rank(a) - rank(b) || a.code.localeCompare(b.code, undefined, { numeric: true }));
+}
+
+// ---- P&L (publish.pnl_grid) --------------------------------------------------------------------
+// Header: Code, Account, 1120-S, <month labels...>, YTD cash, YTD accrual. Section rows are a
+// single cell ("Income" / "Expense"); "Total ..." rows have an empty code; last row is Net income.
+
+export interface PnlRow { code: string; name: string; line: string; values: number[] }
+export interface PnlSection { title: string; rows: PnlRow[]; total: number[] }
+export interface Pnl {
+  title: string;
+  months: string[]; // labels like "Jan"; values[] has months.length + 2 entries (YTD cash, YTD accrual)
+  sections: PnlSection[];
+  net: number[];
+}
+export const EMPTY_PNL: Pnl = { title: "", months: [], sections: [], net: [] };
+
+export function parsePnl(grid: Grid): Pnl {
+  const h = grid.findIndex((r) => text(r?.[0]) === "Code" && text(r?.[1]) === "Account");
+  if (h < 0) return EMPTY_PNL;
+  const head = grid[h].map(text);
+  const months = head.slice(3, Math.max(3, head.length - 2));
+  const width = months.length + 2;
+  const vals = (r: unknown[]) => Array.from({ length: width }, (_, i) => toNumber(r[3 + i]) ?? 0);
+  const sections: PnlSection[] = [];
+  let net: number[] = [];
+  let cur: PnlSection | null = null;
+  for (const r of grid.slice(h + 1)) {
+    if (!Array.isArray(r) || r.every((c) => text(c) === "")) continue;
+    const code = text(r[0]), name = text(r[1]);
+    if (code && !name) { cur = { title: code, rows: [], total: [] }; sections.push(cur); continue; }
+    if (!code && name === "Net income") { net = vals(r); continue; }
+    if (!code && name.startsWith("Total") && cur) { cur.total = vals(r); continue; }
+    if (code && cur) cur.rows.push({ code, name, line: text(r[2]), values: vals(r) });
+  }
+  return { title: text(grid[0]?.[0]), months, sections, net };
+}
+
+// ---- Balance sheet (publish.bs_grid) -----------------------------------------------------------
+// Header: Code, Account, <month-end dates...>. Sections Assets/Liabilities/Equity; equity ends
+// with "Net income, current year"; "Total <type>" rows have an empty code.
+
+export interface BsRow { code: string; name: string; values: number[] }
+export interface BsSection { title: string; rows: BsRow[]; total: number[] }
+export interface BalanceSheet { title: string; ends: string[]; sections: BsSection[] }
+export const EMPTY_BS: BalanceSheet = { title: "", ends: [], sections: [] };
+
+export function parseBalanceSheet(grid: Grid): BalanceSheet {
+  const h = grid.findIndex((r) => text(r?.[0]) === "Code" && text(r?.[1]) === "Account");
+  if (h < 0) return EMPTY_BS;
+  const ends = grid[h].slice(2).map(toIsoDate);
+  const vals = (r: unknown[]) => ends.map((_, i) => toNumber(r[2 + i]) ?? 0);
+  const sections: BsSection[] = [];
+  let cur: BsSection | null = null;
+  for (const r of grid.slice(h + 1)) {
+    if (!Array.isArray(r) || r.every((c) => text(c) === "")) continue;
+    const code = text(r[0]), name = text(r[1]);
+    if (code && !name) { cur = { title: code, rows: [], total: [] }; sections.push(cur); continue; }
+    if (!cur) continue;
+    if (!code && name.startsWith("Total")) cur.total = vals(r);
+    else cur.rows.push({ code, name, values: vals(r) });
+  }
+  return { title: text(grid[0]?.[0]), ends, sections };
 }
