@@ -3,7 +3,7 @@
 Notes for Claude Code sessions in this repo.
 
 ## Project
-NCPT Books app: a phone-first PWA (React + Vite + TypeScript) that fronts the NCPT Books Google Sheet for Wade and Julie. Plan and decisions (authoritative): `~/Projects/CFO/ncpt_books/docs/MOBILE-APP-PLAN.md`. Phase 1 (read-only Today + unpaid list) is built; phases 2-5 are in README ROADMAP.
+NCPT Books app: a phone-first PWA (React + Vite + TypeScript) that fronts the NCPT Books Google Sheet for Wade and Julie. Plan and decisions (authoritative): `~/Projects/CFO/ncpt_books/docs/MOBILE-APP-PLAN.md`. Built: Today, Transactions (booking sheet), Reports, Unpaid. The app reads only the `App *` tabs plus `P&L`, `Balance Sheet`, `Accounts` and writes only appended rows to `App Decisions` (never read `Invoices`, `Journal`, `Customers`, `Payers`, `Review`); phases 2-5 are in README ROADMAP.
 
 ## Deploy rule
 GitHub Pages from `main` via `.github/workflows/deploy.yml`. NOT enabled: there is no remote. Do not create a GitHub repo, add a remote or push until Wade okays it (private repo, SSH remote `git@github.com:wsias714/ncpt-app.git`). Work on a branch, run `npm run check`, merge to `main` to deploy. At that point also register the app (bench `config/projects.json`, `bench/projects/`, `obligations/reference/apps.md`).

@@ -1,6 +1,6 @@
 # NCPT Books app
 
-Phone-first PWA (React + Vite + TypeScript) that is a front end to the NCPT Books Google Sheet. Phase 1 is read-only: a Today screen and an unpaid-invoice list. Target state and decisions: `~/Projects/CFO/ncpt_books/docs/MOBILE-APP-PLAN.md`.
+Phone-first PWA (React + Vite + TypeScript) that is a front end to the NCPT Books Google Sheet. Screens: Today (cash profit, wages, invoices, needs booking, last 7 days, balances), Transactions (search/filters, booking sheet), Reports (income statement, balance sheet, trend charts), Unpaid. It reads only the masked, app-ready tabs `App Summary`, `App Transactions`, `App Monthly`, `App Invoices`, `App Decisions`, `P&L`, `Balance Sheet`, `Accounts` (missing tabs show empty states). The only write is an appended row on `App Decisions` (Entry, Account, Note, Who, When); Python applies it at the next publish. Raw `Invoices`, `Journal`, `Customers`, `Payers`, `Review` are never read. Target state and decisions: `~/Projects/CFO/ncpt_books/docs/MOBILE-APP-PLAN.md`.
 
 The app never sends, pays or files anything, and holds no patient identifiers. Customers appear as codes ("Customer V") only.
 
@@ -19,9 +19,10 @@ npm run check                # pii scan + tests + typecheck + build
 
 - Sign-in: Google Identity Services token client, token held in memory only.
 - "Who is this?" (Wade or Julie): a label in localStorage, stamped on every write (`src/lib/who.ts`). Phase 1 has no writes.
-- Reader (`src/lib/sheets.ts`): Sheets REST `values:batchGet` for tabs Dashboard, Close, Invoices, cached in memory per session. Nothing from the Sheet touches localStorage or IndexedDB. The service worker caches the app shell only.
+- Reader (`src/lib/sheets.ts`): Sheets REST `values:batchGet` for the app tabs above (falls back to tab-by-tab if one is not published yet), cached in memory per session. Nothing from the Sheet touches localStorage or IndexedDB. The service worker caches the app shell only.
 - Parsers (`src/lib/parse.ts`): pure, unit-tested against made-up fixtures (`src/lib/fixtures.ts`).
-- The AR list reads the **Invoices** tab (there is no separate AR tab in the Sheet) and keeps only unpaid rows. The Customer column is reduced to a code; anything not shaped like a code shows as "Unlabeled".
+- Invoices come from `App Invoices` (codes only; anything not shaped like a code shows as "Unlabeled"). It has no paid date, so "paid in last 30 days" uses invoice date.
+- Booking: rows in a closed month (`Locked` = yes) cannot be re-booked. A saved decision shows "pending" until the published Category code matches.
 
 ## PII checks
 
@@ -33,9 +34,9 @@ GitHub Pages from `main` via `.github/workflows/deploy.yml`. Not enabled: no rem
 
 ## ROADMAP
 
-Phases from the plan (phase 1 above is built):
+Phases from the plan (phase 1 and the transactions/reports/booking pass above are built):
 
-2. Wade's queue: Review decisions, approvals (recorded, not executed), month lock request.
+2. Wade's queue: approvals (recorded, not executed), month lock request. (Per-line booking is done via App Decisions.)
 3. Julie's billing: invoice drafts opened in Gmail (she presses send), payment received, unpaid list with names while online.
 4. Receipts and mileage: photo receipts to Drive `Receipts/<year>/`, mileage owed (Stride stays the source).
 5. Polish: reminders via the Bench briefing, home-screen install, offline cache with codes only.
