@@ -3,6 +3,7 @@ import { BookingSheet } from "./components/BookingSheet.tsx";
 import { NamesContext } from "./components/NamesContext.tsx";
 import { loadNameMap, makeLabeler, namesEnabled, namesForcedOff, NO_NAMES, saveNamesPref, savedNamesPref, type NameMap } from "./lib/names.ts";
 import { clientIdConfigured, getToken, signIn, signOut } from "./lib/auth.ts";
+import { demoActive, demoTabs } from "./lib/demo.ts";
 import { buildModel } from "./lib/model.ts";
 import { NO_FILTER, type Decision, type Tx, type TxFilter } from "./lib/parse.ts";
 import { AuthExpiredError, createReader, decisionRow, type Tabs } from "./lib/sheets.ts";
@@ -19,9 +20,10 @@ type Screen = "today" | "tx" | "reports" | "ar";
 const NAV: [Screen, string][] = [["today", "Today"], ["tx", "Transactions"], ["reports", "Reports"], ["ar", "Unpaid"]];
 
 export function App() {
-  const [who, setWhoState] = useState<Who | null>(getWho());
-  const [signedIn, setSignedIn] = useState(false);
-  const [tabs, setTabs] = useState<Tabs | null>(null);
+  const demo = demoActive(window.location.search); // dev server only: fixtures, no sign-in
+  const [who, setWhoState] = useState<Who | null>(demo ? "Wade" : getWho());
+  const [signedIn, setSignedIn] = useState(demo);
+  const [tabs, setTabs] = useState<Tabs | null>(demo ? demoTabs : null);
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
   const [screen, setScreen] = useState<Screen>("today");
@@ -67,7 +69,7 @@ export function App() {
   const saveDecision = async (tx: Tx, account: string, note: string) => {
     if (!who) return;
     const row = decisionRow(tx.entry, account, note, who);
-    try { await reader.appendDecision(row); }
+    try { if (!demo) await reader.appendDecision(row); }
     catch (e) { if (e instanceof AuthExpiredError) { setSignedIn(false); setTabs(null); } throw e; }
     setSent((s) => [...s, { entry: row[0], account: row[1], note: row[2], who: row[3], when: row[4] }]);
   };

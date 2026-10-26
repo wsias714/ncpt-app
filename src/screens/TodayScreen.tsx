@@ -1,7 +1,7 @@
 import { Sparkline } from "../components/Chart.tsx";
 import { TxRow } from "../components/TxRow.tsx";
 import type { Model } from "../lib/model.ts";
-import { invoiceStats, money, needsBooking, recentTransactions, wagesTotal, type Tx } from "../lib/parse.ts";
+import { beforePayroll, invoiceStats, money, needsBooking, recentTransactions, wagesTotal, type Tx } from "../lib/parse.ts";
 
 interface Props { m: Model; openTx: (t: Tx) => void; goUnpaid: () => void; goTransactions: (reviewOnly: boolean) => void; goReports: () => void }
 
@@ -42,6 +42,11 @@ export function TodayScreen({ m, openTx, goUnpaid, goTransactions, goReports }: 
         <div className={"big" + ((s.profitMtd ?? 0) < 0 ? " warn" : "")}>{money(s.profitMtd)}</div>
         <Sparkline values={spark} label="Monthly cash profit, last 12 months" />
         <div className="row sub"><span>Last month {money(s.profitLastMonth)}</span><span>Year to date {money(s.profitYtd)}</span></div>
+        <div className="before">
+          <div className="label">Before payroll <span className="muted">(wages, employer taxes and match are owner income)</span></div>
+          <div className="big small">{money(beforePayroll(s.profitMtd, s.payrollMtd))}</div>
+          <div className="row sub"><span>Last month {money(beforePayroll(s.profitLastMonth, s.payrollLastMonth))}</span><span>Year to date {money(beforePayroll(s.profitYtd, wages))}</span></div>
+        </div>
       </div>
 
       <div className="card">

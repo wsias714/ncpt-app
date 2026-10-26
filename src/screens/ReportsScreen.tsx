@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { BarChart, LineChart } from "../components/Chart.tsx";
 import type { Model } from "../lib/model.ts";
-import { money } from "../lib/parse.ts";
+import { beforePayroll, money, payrollInPnl } from "../lib/parse.ts";
 
 type Seg = "is" | "bs" | "trends";
 interface Props { m: Model; filterByCode: (code: string) => void }
@@ -43,6 +43,8 @@ function Statement({ m, filterByCode }: Props) {
         </div>
       ))}
       <div className="row total big2"><strong>Net income ({basis})</strong><strong className={at(p.net) < 0 ? "warn" : ""}>{money(at(p.net))}</strong></div>
+      <div className="row sub"><span>Payroll (wages, employer taxes, 401k match) added back</span><span>{money(payrollInPnl(p, col))}</span></div>
+      <div className="row total big2"><strong>Net income before payroll ({basis})</strong><strong>{money(beforePayroll(at(p.net), payrollInPnl(p, col)))}</strong></div>
       <p className="sub">Tap an account to see its transactions.</p>
     </>
   );
@@ -87,6 +89,9 @@ function Trends({ m }: { m: Model }) {
       ]} />
       <BarChart title="Net profit by month (cash)" labels={labels} series={[
         { name: "Net cash", color: "var(--accent)", values: rows.map((r) => r.netCash) },
+      ]} />
+      <BarChart title="Net profit before payroll by month (cash)" labels={labels} series={[
+        { name: "Before payroll", color: "var(--accent)", values: rows.map((r) => beforePayroll(r.netCash, r.payroll) ?? 0) },
       ]} />
       <LineChart title="Cash and receivables at month end" labels={labels} series={[
         { name: "Cash", color: "var(--accent)", values: rows.map((r) => r.cashEnd) },

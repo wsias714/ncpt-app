@@ -59,6 +59,8 @@ export interface Summary {
   profitMtd: number | null;
   profitLastMonth: number | null;
   profitYtd: number | null;
+  payrollMtd: number | null; // wages + employer taxes + match in the period
+  payrollLastMonth: number | null;
   wagesGrossYtd: number | null;
   payrollTaxesYtd: number | null;
   matchYtd: number | null;
@@ -85,6 +87,8 @@ export function parseSummary(grid: Grid): Summary {
     profitMtd: n("profit_mtd"),
     profitLastMonth: n("profit_last_month"),
     profitYtd: n("profit_ytd"),
+    payrollMtd: n("payroll_mtd"),
+    payrollLastMonth: n("payroll_last_month"),
     wagesGrossYtd: n("wages_gross_ytd"),
     payrollTaxesYtd: n("payroll_taxes_ytd"),
     matchYtd: n("match_ytd"),
@@ -99,6 +103,11 @@ export function parseSummary(grid: Grid): Summary {
     needsBooking: n("needs_booking"),
     present: kv.size > 0,
   };
+}
+
+// Profit with payroll added back: payroll goes to the owner, so it is income too. Null if either side is unknown.
+export function beforePayroll(profit: number | null, payroll: number | null): number | null {
+  return profit === null || payroll === null ? null : round2(profit + payroll);
 }
 
 export function wagesTotal(s: Summary): number | null {
@@ -205,6 +214,7 @@ export function recentTransactions(txs: Tx[], today: string, days = 7): Tx[] {
 export interface MonthRow {
   month: string; income: number; expense: number; netCash: number; netAccrual: number;
   cashEnd: number; arEnd: number; cardEnd: number;
+  payroll: number; // wages + employer taxes + match that month (optional trailing column)
 }
 
 export function parseMonthly(grid: Grid): MonthRow[] {
@@ -213,7 +223,7 @@ export function parseMonthly(grid: Grid): MonthRow[] {
     const month = text(r[0]).slice(0, 7);
     if (!/^\d{4}-\d{2}$/.test(month)) continue;
     const v = (i: number) => toNumber(r[i]) ?? 0;
-    out.push({ month, income: v(1), expense: v(2), netCash: v(3), netAccrual: v(4), cashEnd: v(5), arEnd: v(6), cardEnd: v(7) });
+    out.push({ month, income: v(1), expense: v(2), netCash: v(3), netAccrual: v(4), cashEnd: v(5), arEnd: v(6), cardEnd: v(7), payroll: v(8) });
   }
   return out.sort((a, b) => a.month.localeCompare(b.month));
 }
@@ -324,6 +334,12 @@ export function parsePnl(grid: Grid): Pnl {
     if (code && cur) cur.rows.push({ code, name, line: text(r[2]), values: vals(r) });
   }
   return { title: text(grid[0]?.[0]), months, sections, net };
+}
+
+// Payroll expense accounts (wages 6000, employer taxes 6100, 401k match 6200) in one P&L column.
+export const PAYROLL_CODES = ["6000", "6100", "6200"];
+export function payrollInPnl(p: Pnl, col: number): number {
+  return round2(p.sections.flatMap((s) => s.rows).filter((r) => PAYROLL_CODES.includes(r.code)).reduce((a, r) => a + (r.values[col] ?? 0), 0));
 }
 
 // ---- Balance sheet (publish.bs_grid) -----------------------------------------------------------
