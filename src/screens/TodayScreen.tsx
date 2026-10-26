@@ -43,9 +43,9 @@ export function TodayScreen({ m, openTx, goUnpaid, goTransactions, goReports }: 
         <Sparkline values={spark} label="Monthly cash profit, last 12 months" />
         <div className="row sub"><span>Last month {money(s.profitLastMonth)}</span><span>Year to date {money(s.profitYtd)}</span></div>
         <div className="before">
-          <div className="label">Before payroll <span className="muted">(wages, employer taxes and match are owner income)</span></div>
-          <div className="big small">{money(beforePayroll(s.profitMtd, s.payrollMtd))}</div>
-          <div className="row sub"><span>Last month {money(beforePayroll(s.profitLastMonth, s.payrollLastMonth))}</span><span>Year to date {money(beforePayroll(s.profitYtd, wages))}</span></div>
+          <div className="label">Before net wages <span className="muted">(take-home pay is owner income)</span></div>
+          <div className="big small">{money(beforePayroll(s.profitMtd, s.netWagesMtd))}</div>
+          <div className="row sub"><span>Last month {money(beforePayroll(s.profitLastMonth, s.netWagesLastMonth))}</span><span>Year to date {money(beforePayroll(s.profitYtd, s.netWagesYtd))}</span></div>
         </div>
       </div>
 
@@ -53,6 +53,7 @@ export function TodayScreen({ m, openTx, goUnpaid, goTransactions, goReports }: 
         <h3>Wages paid, year to date</h3>
         <div className="big small">{money(wages)}</div>
         <div className="sub">Gross {money(s.wagesGrossYtd)} - employer taxes {money(s.payrollTaxesYtd)} - 401k match {money(s.matchYtd)}</div>
+        <div className="sub">Net wages (take-home) {money(s.netWagesYtd)}</div>
         <div className="sub">Payroll still owed: {money(s.payrollLiab)}</div>
       </div>
 

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
-  beforePayroll, payrollInPnl, NO_FILTER, UNLABELED, accountPickerOrder, customerCode, daysBetween, filterTransactions, invoiceStats, isPending,
+  beforePayroll, netWagesForColumn, NO_FILTER, UNLABELED, accountPickerOrder, customerCode, daysBetween, filterTransactions, invoiceStats, isPending,
   latestDecisions, money, needsBooking, parseAccounts, parseAppInvoices, parseBalanceSheet, parseDecisions,
   parseMonthly, parsePnl, parseSummary, parseTransactions, recentTransactions, toIsoDate, toNumber, totalOpen,
   txCategories, txMonths, wagesTotal,
@@ -32,12 +32,14 @@ describe("parseSummary", () => {
     expect(s).toMatchObject({ asOf: "2030-03-15", profitMtd: 1200.5, profitYtd: 9100, cash: 10000.5, cardOwed: 250, ar: 1500, needsBooking: 3, mileageDue: "2030-04-01", lastClosedMonth: "2030-01", present: true });
     expect(s.closeBlockers).toEqual(["2030-02: bank rec off by 12.00", "2030-02: payroll residue"]);
     expect(wagesTotal(s)).toBe(5550);
-    expect(beforePayroll(s.profitLastMonth, s.payrollLastMonth)).toBe(5900);
-    expect(beforePayroll(s.profitYtd, wagesTotal(s))).toBe(14650);
+    expect(beforePayroll(s.profitLastMonth, s.netWagesLastMonth)).toBe(5600);
+    expect(beforePayroll(s.profitYtd, s.netWagesYtd)).toBe(13600);
     expect(beforePayroll(null, 5)).toBeNull();
-    expect(parseMonthly(monthlyFixture).map((r) => r.payroll)).toEqual([3050, 2500, 0]);
-    // fixture account 6200 stands in for a payroll code here: 600 in the YTD cash column (index 3)
-    expect(payrollInPnl(parsePnl(pnlFixture), 3)).toBe(600);
+    const monthly = parseMonthly(monthlyFixture);
+    expect(monthly.map((r) => r.netWages)).toEqual([2300, 2200, 0]);
+    expect(netWagesForColumn(monthly, "2030", 1, 3)).toBe(2200); // Feb
+    expect(netWagesForColumn(monthly, "2030", 3, 3)).toBe(4500); // year to date
+    expect(netWagesForColumn(monthly, "2029", 3, 3)).toBe(0);
   });
   it("treats none as clear and survives empty", () => {
     expect(parseSummary([["Key", "Value"], ["close_blockers", "none"]]).closeBlockers).toEqual([]);

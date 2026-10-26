@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { BarChart, LineChart } from "../components/Chart.tsx";
 import type { Model } from "../lib/model.ts";
-import { beforePayroll, money, payrollInPnl } from "../lib/parse.ts";
+import { beforePayroll, money, netWagesForColumn } from "../lib/parse.ts";
 
 type Seg = "is" | "bs" | "trends";
 interface Props { m: Model; filterByCode: (code: string) => void }
@@ -14,6 +14,7 @@ function Statement({ m, filterByCode }: Props) {
   const ytdCol = p.months.length + (basis === "cash" ? 0 : 1);
   const col = basis === "accrual" || period === "ytd" ? ytdCol : Math.min(Number(period), p.months.length - 1);
   const at = (v: number[]) => v[col] ?? 0;
+  const netW = netWagesForColumn(m.monthly, m.summary.asOf.slice(0, 4) || m.today.slice(0, 4), col, p.months.length);
   return (
     <>
       <div className="filters">
@@ -43,8 +44,8 @@ function Statement({ m, filterByCode }: Props) {
         </div>
       ))}
       <div className="row total big2"><strong>Net income ({basis})</strong><strong className={at(p.net) < 0 ? "warn" : ""}>{money(at(p.net))}</strong></div>
-      <div className="row sub"><span>Payroll (wages, employer taxes, 401k match) added back</span><span>{money(payrollInPnl(p, col))}</span></div>
-      <div className="row total big2"><strong>Net income before payroll ({basis})</strong><strong>{money(beforePayroll(at(p.net), payrollInPnl(p, col)))}</strong></div>
+      <div className="row sub"><span>Net wages (gross less employee taxes) added back</span><span>{money(netW)}</span></div>
+      <div className="row total big2"><strong>Net income before net wages ({basis})</strong><strong>{money(beforePayroll(at(p.net), netW))}</strong></div>
       <p className="sub">Tap an account to see its transactions.</p>
     </>
   );
@@ -90,8 +91,8 @@ function Trends({ m }: { m: Model }) {
       <BarChart title="Net profit by month (cash)" labels={labels} series={[
         { name: "Net cash", color: "var(--accent)", values: rows.map((r) => r.netCash) },
       ]} />
-      <BarChart title="Net profit before payroll by month (cash)" labels={labels} series={[
-        { name: "Before payroll", color: "var(--accent)", values: rows.map((r) => beforePayroll(r.netCash, r.payroll) ?? 0) },
+      <BarChart title="Net profit before net wages by month (cash)" labels={labels} series={[
+        { name: "Before net wages", color: "var(--accent)", values: rows.map((r) => beforePayroll(r.netCash, r.netWages) ?? 0) },
       ]} />
       <LineChart title="Cash and receivables at month end" labels={labels} series={[
         { name: "Cash", color: "var(--accent)", values: rows.map((r) => r.cashEnd) },

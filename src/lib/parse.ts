@@ -59,8 +59,9 @@ export interface Summary {
   profitMtd: number | null;
   profitLastMonth: number | null;
   profitYtd: number | null;
-  payrollMtd: number | null; // wages + employer taxes + match in the period
-  payrollLastMonth: number | null;
+  netWagesMtd: number | null; // gross wages less employee taxes (take-home pay): owner income
+  netWagesLastMonth: number | null;
+  netWagesYtd: number | null;
   wagesGrossYtd: number | null;
   payrollTaxesYtd: number | null;
   matchYtd: number | null;
@@ -87,8 +88,9 @@ export function parseSummary(grid: Grid): Summary {
     profitMtd: n("profit_mtd"),
     profitLastMonth: n("profit_last_month"),
     profitYtd: n("profit_ytd"),
-    payrollMtd: n("payroll_mtd"),
-    payrollLastMonth: n("payroll_last_month"),
+    netWagesMtd: n("net_wages_mtd"),
+    netWagesLastMonth: n("net_wages_last_month"),
+    netWagesYtd: n("net_wages_ytd"),
     wagesGrossYtd: n("wages_gross_ytd"),
     payrollTaxesYtd: n("payroll_taxes_ytd"),
     matchYtd: n("match_ytd"),
@@ -105,9 +107,10 @@ export function parseSummary(grid: Grid): Summary {
   };
 }
 
-// Profit with payroll added back: payroll goes to the owner, so it is income too. Null if either side is unknown.
-export function beforePayroll(profit: number | null, payroll: number | null): number | null {
-  return profit === null || payroll === null ? null : round2(profit + payroll);
+// Profit with net wages added back: take-home pay goes to the owner instead of distributions, so it is
+// income too. Null if either side is unknown.
+export function beforePayroll(profit: number | null, netWages: number | null): number | null {
+  return profit === null || netWages === null ? null : round2(profit + netWages);
 }
 
 export function wagesTotal(s: Summary): number | null {
@@ -214,7 +217,7 @@ export function recentTransactions(txs: Tx[], today: string, days = 7): Tx[] {
 export interface MonthRow {
   month: string; income: number; expense: number; netCash: number; netAccrual: number;
   cashEnd: number; arEnd: number; cardEnd: number;
-  payroll: number; // wages + employer taxes + match that month (optional trailing column)
+  netWages: number; // take-home wages booked that month (optional trailing column)
 }
 
 export function parseMonthly(grid: Grid): MonthRow[] {
@@ -223,7 +226,7 @@ export function parseMonthly(grid: Grid): MonthRow[] {
     const month = text(r[0]).slice(0, 7);
     if (!/^\d{4}-\d{2}$/.test(month)) continue;
     const v = (i: number) => toNumber(r[i]) ?? 0;
-    out.push({ month, income: v(1), expense: v(2), netCash: v(3), netAccrual: v(4), cashEnd: v(5), arEnd: v(6), cardEnd: v(7), payroll: v(8) });
+    out.push({ month, income: v(1), expense: v(2), netCash: v(3), netAccrual: v(4), cashEnd: v(5), arEnd: v(6), cardEnd: v(7), netWages: v(8) });
   }
   return out.sort((a, b) => a.month.localeCompare(b.month));
 }
@@ -336,10 +339,12 @@ export function parsePnl(grid: Grid): Pnl {
   return { title: text(grid[0]?.[0]), months, sections, net };
 }
 
-// Payroll expense accounts (wages 6000, employer taxes 6100, 401k match 6200) in one P&L column.
-export const PAYROLL_CODES = ["6000", "6100", "6200"];
-export function payrollInPnl(p: Pnl, col: number): number {
-  return round2(p.sections.flatMap((s) => s.rows).filter((r) => PAYROLL_CODES.includes(r.code)).reduce((a, r) => a + (r.values[col] ?? 0), 0));
+// Net wages for one P&L column: the P&L tab only has gross, so take them from the monthly rows.
+// Columns 0..months-1 are the months of `year`; the two columns after are year to date.
+export function netWagesForColumn(monthly: MonthRow[], year: string, col: number, monthCount: number): number {
+  const inYear = monthly.filter((r) => r.month.startsWith(year + "-"));
+  const rows = col < monthCount ? inYear.filter((r) => Number(r.month.slice(5)) === col + 1) : inYear;
+  return round2(rows.reduce((a, r) => a + r.netWages, 0));
 }
 
 // ---- Balance sheet (publish.bs_grid) -----------------------------------------------------------
