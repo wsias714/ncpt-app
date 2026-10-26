@@ -65,6 +65,13 @@ nav button.on { color: var(--accent); font-weight: 600; }
 .seg button { flex: 1; background: var(--card); border: 0; padding: 10px 6px; font-size: .9rem; color: var(--muted); }
 .seg button.on { background: var(--accent); color: var(--bg); font-weight: 600; }
 .seg.small { margin: 0; flex: 0 0 auto; }
+.seg.small button { padding: 6px 10px; flex: 0 0 auto; }
+.seg button { min-width: 0; }
+.row .seg.small, .filters .seg.small { margin-bottom: 0; }
+.yoy { display: grid; grid-template-columns: 1.6fr 1fr 1fr 1fr; gap: 6px; padding: 8px 0; border-bottom: 1px solid var(--line); font-size: .85rem; }
+.yoy span:not(.grow) { text-align: right; }
+.yoyhead { display: grid; grid-template-columns: 1.6fr 1fr 1fr 1fr; gap: 6px; font-size: .8rem; padding: 8px 0; border-bottom: 2px solid var(--line); }
+.yoyhead strong:not(:first-child) { text-align: right; }
 .total { border-top: 2px solid var(--line); padding-top: 8px; }
 .scrim { position: fixed; inset: 0; background: rgba(0, 0, 0, .45); display: flex; align-items: flex-end; justify-content: center; z-index: 10; }
 .sheet { background: var(--card); width: 100%; max-width: 600px; border-radius: 16px 16px 0 0; padding: 16px; padding-bottom: max(16px, env(safe-area-inset-bottom)); max-height: 90dvh; overflow: auto; }

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
-  beforePayroll, netWagesForColumn, NO_FILTER, UNLABELED, accountPickerOrder, customerCode, daysBetween, filterTransactions, invoiceStats, isPending,
+  beforeOwnerPay, compareYears, ownerPayInMonths, periodMonths, totals, NO_FILTER, UNLABELED, accountPickerOrder, customerCode, daysBetween, filterTransactions, invoiceStats, isPending,
   latestDecisions, money, needsBooking, parseAccounts, parseAppInvoices, parseBalanceSheet, parseDecisions,
   parseMonthly, parsePnl, parseSummary, parseTransactions, recentTransactions, toIsoDate, toNumber, totalOpen,
   txCategories, txMonths, wagesTotal,
@@ -32,14 +32,29 @@ describe("parseSummary", () => {
     expect(s).toMatchObject({ asOf: "2030-03-15", profitMtd: 1200.5, profitYtd: 9100, cash: 10000.5, cardOwed: 250, ar: 1500, needsBooking: 3, mileageDue: "2030-04-01", lastClosedMonth: "2030-01", present: true });
     expect(s.closeBlockers).toEqual(["2030-02: bank rec off by 12.00", "2030-02: payroll residue"]);
     expect(wagesTotal(s)).toBe(5550);
-    expect(beforePayroll(s.profitLastMonth, s.netWagesLastMonth)).toBe(5600);
-    expect(beforePayroll(s.profitYtd, s.netWagesYtd)).toBe(13600);
-    expect(beforePayroll(null, 5)).toBeNull();
+    expect(s).toMatchObject({ netWagesYtd: 4500, k401Ytd: 150 });
+    expect(beforeOwnerPay(s.profitYtd, 4650)).toBe(13750);
+    expect(beforeOwnerPay(null, 5)).toBeNull();
+  });
+  it("sums time periods, owner pay and year over year from the monthly rows", () => {
     const monthly = parseMonthly(monthlyFixture);
-    expect(monthly.map((r) => r.netWages)).toEqual([2300, 2200, 0]);
-    expect(netWagesForColumn(monthly, "2030", 1, 3)).toBe(2200); // Feb
-    expect(netWagesForColumn(monthly, "2030", 3, 3)).toBe(4500); // year to date
-    expect(netWagesForColumn(monthly, "2029", 3, 3)).toBe(0);
+    expect(monthly.map((r) => r.month)).toEqual(["2029-02", "2029-03", "2030-01", "2030-02", "2030-03"]);
+    expect(monthly.map((r) => r.netWages)).toEqual([1000, 0, 2300, 2200, 0]);
+    const months = (p: "1M" | "3M" | "6M" | "YTD") => periodMonths(monthly, "2030-03-15", p).map((r) => r.month);
+    expect(months("1M")).toEqual(["2030-03"]);
+    expect(months("3M")).toEqual(["2030-01", "2030-02", "2030-03"]);
+    expect(months("6M")).toHaveLength(5); // only five months exist
+    expect(months("YTD")).toEqual(["2030-01", "2030-02", "2030-03"]);
+    const t = totals(periodMonths(monthly, "2030-03-15", "3M"));
+    expect(t).toMatchObject({ months: 3, income: 9500, net: 6600, netWages: 4500, k401: 150, ownerPay: 4650, beforeOwnerPay: 11250 });
+    expect(ownerPayInMonths(monthly, "2030", [2])).toBe(2300);
+    expect(ownerPayInMonths(monthly, "2030")).toBe(4650);
+    expect(ownerPayInMonths(monthly, "2031")).toBe(0);
+    const y = compareYears(monthly, "2030-03-15", "3M");
+    expect(y.priorMonths).toBe(2); // 2029-01 has no data
+    expect(y.prior.net).toBe(3900);
+    expect(y.priorLabel).toBe("2029-01 to 2029-03");
+    expect(compareYears(monthly, "2029-03-01", "1M").priorMonths).toBe(0); // no 2028
   });
   it("treats none as clear and survives empty", () => {
     expect(parseSummary([["Key", "Value"], ["close_blockers", "none"]]).closeBlockers).toEqual([]);
@@ -87,8 +102,8 @@ describe("transactions and decisions", () => {
 describe("parseMonthly", () => {
   it("sorts oldest first", () => {
     const m = parseMonthly(monthlyFixture);
-    expect(m.map((r) => r.month)).toEqual(["2030-01", "2030-02", "2030-03"]);
-    expect(m[2]).toMatchObject({ income: 2000, netCash: 1200, cashEnd: 10000.5, arEnd: 1500, cardEnd: 250 });
+    expect(m.map((r) => r.month)).toEqual(["2029-02", "2029-03", "2030-01", "2030-02", "2030-03"]);
+    expect(m[4]).toMatchObject({ income: 2000, netCash: 1200, cashEnd: 10000.5, arEnd: 1500, cardEnd: 250 });
     expect(parseMonthly([])).toEqual([]);
   });
 });

@@ -59,9 +59,8 @@ export interface Summary {
   profitMtd: number | null;
   profitLastMonth: number | null;
   profitYtd: number | null;
-  netWagesMtd: number | null; // gross wages less employee taxes (take-home pay): owner income
-  netWagesLastMonth: number | null;
-  netWagesYtd: number | null;
+  netWagesYtd: number | null; // gross wages less employee taxes (take-home pay): owner income
+  k401Ytd: number | null; // 401k employer contribution: counted with wages as owner income
   wagesGrossYtd: number | null;
   payrollTaxesYtd: number | null;
   matchYtd: number | null;
@@ -88,9 +87,8 @@ export function parseSummary(grid: Grid): Summary {
     profitMtd: n("profit_mtd"),
     profitLastMonth: n("profit_last_month"),
     profitYtd: n("profit_ytd"),
-    netWagesMtd: n("net_wages_mtd"),
-    netWagesLastMonth: n("net_wages_last_month"),
     netWagesYtd: n("net_wages_ytd"),
+    k401Ytd: n("k401_ytd"),
     wagesGrossYtd: n("wages_gross_ytd"),
     payrollTaxesYtd: n("payroll_taxes_ytd"),
     matchYtd: n("match_ytd"),
@@ -107,10 +105,10 @@ export function parseSummary(grid: Grid): Summary {
   };
 }
 
-// Profit with net wages added back: take-home pay goes to the owner instead of distributions, so it is
-// income too. Null if either side is unknown.
-export function beforePayroll(profit: number | null, netWages: number | null): number | null {
-  return profit === null || netWages === null ? null : round2(profit + netWages);
+// Profit with owner pay added back (net wages + 401k contribution): the owner is paid this instead of
+// distributions, so it is income too. Employer payroll taxes are a real cost and stay deducted.
+export function beforeOwnerPay(profit: number | null, ownerPay: number | null): number | null {
+  return profit === null || ownerPay === null ? null : round2(profit + ownerPay);
 }
 
 export function wagesTotal(s: Summary): number | null {
@@ -218,6 +216,7 @@ export interface MonthRow {
   month: string; income: number; expense: number; netCash: number; netAccrual: number;
   cashEnd: number; arEnd: number; cardEnd: number;
   netWages: number; // take-home wages booked that month (optional trailing column)
+  k401: number; // 401k employer contribution booked that month (optional trailing column)
 }
 
 export function parseMonthly(grid: Grid): MonthRow[] {
@@ -226,7 +225,7 @@ export function parseMonthly(grid: Grid): MonthRow[] {
     const month = text(r[0]).slice(0, 7);
     if (!/^\d{4}-\d{2}$/.test(month)) continue;
     const v = (i: number) => toNumber(r[i]) ?? 0;
-    out.push({ month, income: v(1), expense: v(2), netCash: v(3), netAccrual: v(4), cashEnd: v(5), arEnd: v(6), cardEnd: v(7), netWages: v(8) });
+    out.push({ month, income: v(1), expense: v(2), netCash: v(3), netAccrual: v(4), cashEnd: v(5), arEnd: v(6), cardEnd: v(7), netWages: v(8), k401: v(9) });
   }
   return out.sort((a, b) => a.month.localeCompare(b.month));
 }
@@ -339,12 +338,49 @@ export function parsePnl(grid: Grid): Pnl {
   return { title: text(grid[0]?.[0]), months, sections, net };
 }
 
-// Net wages for one P&L column: the P&L tab only has gross, so take them from the monthly rows.
-// Columns 0..months-1 are the months of `year`; the two columns after are year to date.
-export function netWagesForColumn(monthly: MonthRow[], year: string, col: number, monthCount: number): number {
-  const inYear = monthly.filter((r) => r.month.startsWith(year + "-"));
-  const rows = col < monthCount ? inYear.filter((r) => Number(r.month.slice(5)) === col + 1) : inYear;
-  return round2(rows.reduce((a, r) => a + r.netWages, 0));
+// ---- Time periods and year over year -------------------------------------------------------------
+
+export type Period = "1M" | "3M" | "6M" | "YTD";
+export const PERIODS: Period[] = ["1M", "3M", "6M", "YTD"];
+export const PERIOD_LABEL: Record<Period, string> = { "1M": "This month", "3M": "Last 3 months", "6M": "Last 6 months", YTD: "Year to date" };
+
+// Months in the period ending at the as-of month (the open month counts, to date). Rows sorted ascending.
+export function periodMonths(monthly: MonthRow[], asOf: string, p: Period): MonthRow[] {
+  const upto = (asOf.slice(0, 7) || monthly[monthly.length - 1]?.month || "");
+  const rows = monthly.filter((r) => r.month <= upto);
+  if (p === "YTD") return rows.filter((r) => r.month.startsWith(upto.slice(0, 4) + "-"));
+  return rows.slice(-Number(p[0]));
+}
+
+export interface Totals {
+  months: number; income: number; expense: number; net: number;
+  netWages: number; k401: number; ownerPay: number; beforeOwnerPay: number;
+}
+export function totals(rows: MonthRow[]): Totals {
+  const sum = (f: (r: MonthRow) => number) => round2(rows.reduce((a, r) => a + f(r), 0));
+  const net = sum((r) => r.netCash), netWages = sum((r) => r.netWages), k401 = sum((r) => r.k401);
+  const ownerPay = round2(netWages + k401);
+  return { months: rows.length, income: sum((r) => r.income), expense: sum((r) => r.expense), net, netWages, k401, ownerPay, beforeOwnerPay: round2(net + ownerPay) };
+}
+
+export interface YearCompare { current: Totals; prior: Totals; priorMonths: number; currentLabel: string; priorLabel: string }
+
+const prevYear = (month: string) => `${Number(month.slice(0, 4)) - 1}${month.slice(4)}`;
+
+// The same months one year earlier. priorMonths counts how many of them have data (the ledger starts
+// 2026-01, so there is no prior year until 2027).
+export function compareYears(monthly: MonthRow[], asOf: string, p: Period): YearCompare {
+  const cur = periodMonths(monthly, asOf, p);
+  const prior = cur.map((r) => monthly.find((x) => x.month === prevYear(r.month))).filter((r): r is MonthRow => !!r);
+  const label = (rows: string[]) => (rows.length === 0 ? "" : rows.length === 1 ? rows[0] : `${rows[0]} to ${rows[rows.length - 1]}`);
+  return { current: totals(cur), prior: totals(prior), priorMonths: prior.length, currentLabel: label(cur.map((r) => r.month)), priorLabel: label(cur.map((r) => prevYear(r.month))) };
+}
+
+// Owner pay for chosen months of one year (month numbers 1-12; omit for the whole year). The P&L tab only
+// has gross wages, so the add-back for its columns comes from the monthly rows.
+export function ownerPayInMonths(monthly: MonthRow[], year: string, nums?: number[]): number {
+  return round2(monthly.filter((r) => r.month.startsWith(year + "-") && (!nums || nums.includes(Number(r.month.slice(5)))))
+    .reduce((a, r) => a + r.netWages + r.k401, 0));
 }
 
 // ---- Balance sheet (publish.bs_grid) -----------------------------------------------------------

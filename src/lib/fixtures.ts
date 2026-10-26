@@ -8,9 +8,8 @@ export const summaryFixture: Grid = [
   ["profit_mtd", 1200.5, "cash basis"],
   ["profit_last_month", 3400, ""],
   ["profit_ytd", 9100, ""],
-  ["net_wages_mtd", 0, ""],
-  ["net_wages_last_month", 2200, ""],
   ["net_wages_ytd", 4500, ""],
+  ["k401_ytd", 150, ""],
   ["wages_gross_ytd", 5000, ""],
   ["payroll_taxes_ytd", 400, ""],
   ["match_ytd", 150, ""],
@@ -43,10 +42,12 @@ export const decisionsFixture: Grid = [
 ];
 
 export const monthlyFixture: Grid = [
-  ["Month", "Income", "Expense", "Net cash", "Net accrual", "Cash end", "AR end", "Card owed end", "Net wages"],
-  ["2030-02", 4000, 1000, 3000, 3100, 9000, 1200, 100, 2200],
-  ["2030-01", 3500, 1100, 2400, 2400, 7000, 900, 80, 2300],
-  ["2030-03", 2000, 800, 1200, 1300, 10000.5, 1500, 250, 0],
+  ["Month", "Income", "Expense", "Net cash", "Net accrual", "Cash end", "AR end", "Card owed end", "Net wages", "401k"],
+  ["2030-02", 4000, 1000, 3000, 3100, 9000, 1200, 100, 2200, 100],
+  ["2030-01", 3500, 1100, 2400, 2400, 7000, 900, 80, 2300, 50],
+  ["2030-03", 2000, 800, 1200, 1300, 10000.5, 1500, 250, 0, 0],
+  ["2029-02", 3000, 900, 2100, 2100, 5000, 800, 60, 1000, 25],
+  ["2029-03", 2500, 700, 1800, 1800, 6000, 700, 40, 0, 0],
 ];
 
 export const invoicesFixture: Grid = [

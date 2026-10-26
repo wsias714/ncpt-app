@@ -13,20 +13,23 @@ export interface Model {
   invoices: ArItem[];
   latest: Map<string, Decision>;
   accounts: Account[];
+  accountNames: Map<string, string>; // code -> name, so screens show names only
   pnl: Pnl;
   bs: BalanceSheet;
 }
 
 // `sent` are decisions saved this session (memory only) so rows show "pending" before a refresh.
 export function buildModel(tabs: Tabs, today: string, sent: Decision[] = []): Model {
+  const accounts = parseAccounts(tabs["Accounts"]);
   return {
+    accountNames: new Map(accounts.map((a) => [a.code, a.name])),
     today,
     summary: parseSummary(tabs["App Summary"]),
     txs: parseTransactions(tabs["App Transactions"]),
     monthly: parseMonthly(tabs["App Monthly"]),
     invoices: parseAppInvoices(tabs["App Invoices"], today),
     latest: latestDecisions([...parseDecisions(tabs["App Decisions"]), ...sent]),
-    accounts: parseAccounts(tabs["Accounts"]),
+    accounts,
     pnl: parsePnl(tabs["P&L"]),
     bs: parseBalanceSheet(tabs["Balance Sheet"]),
   };

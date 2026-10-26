@@ -28,14 +28,14 @@ export function TransactionsScreen({ m, filter, setFilter, openTx }: Props) {
         </select>
         <select value={filter.code} onChange={(e) => set({ code: e.target.value })} aria-label="Category">
           <option value="">All categories</option>
-          {cats.map((c) => <option key={c.code} value={c.code}>{c.code} {c.name}</option>)}
+          {cats.map((c) => <option key={c.code} value={c.code}>{c.name}</option>)}
         </select>
         <label className="check"><input type="checkbox" checked={filter.reviewOnly} onChange={(e) => set({ reviewOnly: e.target.checked })} /> Needs review</label>
         {active && <button className="link" onClick={() => setFilter({ query: "", account: "", month: "", reviewOnly: false, code: "" })}>Clear</button>}
       </div>
       {m.txs.length === 0 && <p className="muted">No transactions published yet.</p>}
       {m.txs.length > 0 && rows.length === 0 && <p className="muted">Nothing matches.</p>}
-      <ul className="list">{rows.slice(0, LIMIT).map((t) => <TxRow key={t.entry} tx={t} latest={m.latest} onOpen={openTx} />)}</ul>
+      <ul className="list">{rows.slice(0, LIMIT).map((t) => <TxRow key={t.entry} tx={t} latest={m.latest} names={m.accountNames} onOpen={openTx} />)}</ul>
       {rows.length > LIMIT && <p className="muted">Showing the newest {LIMIT}. Narrow the filters to see more.</p>}
     </section>
   );

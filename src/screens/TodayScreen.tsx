@@ -1,7 +1,9 @@
+import { useState } from "react";
 import { Sparkline } from "../components/Chart.tsx";
+import { PeriodToggle } from "../components/PeriodToggle.tsx";
 import { TxRow } from "../components/TxRow.tsx";
 import type { Model } from "../lib/model.ts";
-import { beforePayroll, invoiceStats, money, needsBooking, recentTransactions, wagesTotal, type Tx } from "../lib/parse.ts";
+import { invoiceStats, money, needsBooking, periodMonths, PERIOD_LABEL, recentTransactions, totals, wagesTotal, type Period, type Tx } from "../lib/parse.ts";
 
 interface Props { m: Model; openTx: (t: Tx) => void; goUnpaid: () => void; goTransactions: (reviewOnly: boolean) => void; goReports: () => void }
 
@@ -17,6 +19,8 @@ function Stat({ label, value, sub, warn }: { label: string; value: string; sub?:
 
 export function TodayScreen({ m, openTx, goUnpaid, goTransactions, goReports }: Props) {
   const s = m.summary;
+  const [period, setPeriod] = useState<Period>("1M");
+  const t = totals(periodMonths(m.monthly, s.asOf || m.today, period));
   const inv = invoiceStats(m.invoices, m.today);
   const wages = wagesTotal(s);
   const need = m.txs.filter((t) => needsBooking(t, m.latest));
@@ -38,14 +42,13 @@ export function TodayScreen({ m, openTx, goUnpaid, goTransactions, goReports }: 
       <h2>Today <span className="muted">as of {s.asOf || "?"}</span></h2>
 
       <div className="card hero">
-        <div className="label">Profit this month (cash basis)</div>
-        <div className={"big" + ((s.profitMtd ?? 0) < 0 ? " warn" : "")}>{money(s.profitMtd)}</div>
+        <div className="row"><div className="label">Profit, {PERIOD_LABEL[period].toLowerCase()} (cash basis)</div><PeriodToggle value={period} onChange={setPeriod} /></div>
+        <div className={"big" + (t.net < 0 ? " warn" : "")}>{money(t.net)}</div>
         <Sparkline values={spark} label="Monthly cash profit, last 12 months" />
-        <div className="row sub"><span>Last month {money(s.profitLastMonth)}</span><span>Year to date {money(s.profitYtd)}</span></div>
         <div className="before">
-          <div className="label">Before net wages <span className="muted">(take-home pay is owner income)</span></div>
-          <div className="big small">{money(beforePayroll(s.profitMtd, s.netWagesMtd))}</div>
-          <div className="row sub"><span>Last month {money(beforePayroll(s.profitLastMonth, s.netWagesLastMonth))}</span><span>Year to date {money(beforePayroll(s.profitYtd, s.netWagesYtd))}</span></div>
+          <div className="label">Before owner pay <span className="muted">(net wages and 401k are owner income)</span></div>
+          <div className="big small">{money(t.beforeOwnerPay)}</div>
+          <div className="row sub"><span>Net wages {money(t.netWages)}</span><span>401k {money(t.k401)}</span></div>
         </div>
       </div>
 
@@ -53,7 +56,7 @@ export function TodayScreen({ m, openTx, goUnpaid, goTransactions, goReports }: 
         <h3>Wages paid, year to date</h3>
         <div className="big small">{money(wages)}</div>
         <div className="sub">Gross {money(s.wagesGrossYtd)} - employer taxes {money(s.payrollTaxesYtd)} - 401k match {money(s.matchYtd)}</div>
-        <div className="sub">Net wages (take-home) {money(s.netWagesYtd)}</div>
+        <div className="sub">Owner pay: net wages {money(s.netWagesYtd)} + 401k {money(s.k401Ytd)}</div>
         <div className="sub">Payroll still owed: {money(s.payrollLiab)}</div>
       </div>
 
@@ -83,14 +86,14 @@ export function TodayScreen({ m, openTx, goUnpaid, goTransactions, goReports }: 
         <div className="row"><h3>Needs booking <span className="muted">{needCount}</span></h3>
           {needCount > 0 && <button className="link" onClick={() => goTransactions(true)}>See all</button>}</div>
         {need.length === 0 ? <p className="muted">Nothing waiting.</p> : (
-          <ul className="list">{need.slice(0, 5).map((t) => <TxRow key={t.entry} tx={t} latest={m.latest} onOpen={openTx} />)}</ul>
+          <ul className="list">{need.slice(0, 5).map((t) => <TxRow key={t.entry} tx={t} latest={m.latest} names={m.accountNames} onOpen={openTx} />)}</ul>
         )}
       </div>
 
       <div className="card">
         <h3>Last 7 days</h3>
         {recent.length === 0 ? <p className="muted">No activity.</p> : (
-          <ul className="list">{recent.map((t) => <TxRow key={t.entry} tx={t} latest={m.latest} onOpen={openTx} />)}</ul>
+          <ul className="list">{recent.map((t) => <TxRow key={t.entry} tx={t} latest={m.latest} names={m.accountNames} onOpen={openTx} />)}</ul>
         )}
       </div>
 

@@ -39,7 +39,7 @@ export function BookingSheet({ tx, accounts, latest, onSave, onClose }: Props) {
           </div>
           <div className="right"><strong className={tx.amount < 0 ? "" : "pos"}>{money(tx.amount)}</strong></div>
         </div>
-        <p className="sub">Now: {tx.code ? `${tx.code} ${tx.category}` : "not booked"}{latest && latest.account !== tx.code ? ` - pending ${latest.account}` : ""}</p>
+        <p className="sub">Now: {tx.code ? tx.category : "not booked"}{latest && latest.account !== tx.code ? ` - pending ${accounts.find((a) => a.code === latest.account)?.name ?? "change"}` : ""}</p>
         {tx.locked ? (
           <p className="warn">Closed month: ask Wade to unlock.</p>
         ) : (
@@ -49,7 +49,7 @@ export function BookingSheet({ tx, accounts, latest, onSave, onClose }: Props) {
                 <option value="">Choose an account</option>
                 {groups.map(([title, list]) => list.length > 0 && (
                   <optgroup key={title} label={title}>
-                    {list.map((a) => <option key={a.code} value={a.code}>{a.code} {a.name}</option>)}
+                    {list.map((a) => <option key={a.code} value={a.code}>{a.name}</option>)}
                   </optgroup>
                 ))}
               </select>
