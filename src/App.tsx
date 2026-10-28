@@ -3,13 +3,14 @@ import { BookingSheet } from "./components/BookingSheet.tsx";
 import { NamesContext } from "./components/NamesContext.tsx";
 import { loadNameMap, makeLabeler, namesEnabled, namesForcedOff, NO_NAMES, saveNamesPref, savedNamesPref, type NameMap } from "./lib/names.ts";
 import { clientIdConfigured, getToken, signIn, signOut } from "./lib/auth.ts";
-import { demoActive, demoTabs } from "./lib/demo.ts";
+import { demoActive, demoOutbox, demoTabs } from "./lib/demo.ts";
 import { buildModel } from "./lib/model.ts";
+import { parseOutbox, sendRow, type OutboxItem, type SendAction } from "./lib/outbox.ts";
 import { NO_FILTER, type Decision, type Tx, type TxFilter } from "./lib/parse.ts";
 import { AuthExpiredError, createReader, decisionRow, type Tabs } from "./lib/sheets.ts";
 import { getWho, setWho, type Who } from "./lib/who.ts";
-import { ArScreen } from "./screens/ArScreen.tsx";
 import { ClientsScreen } from "./screens/ClientsScreen.tsx";
+import { InvoicesScreen, type Requested } from "./screens/InvoicesScreen.tsx";
 import { ReportsScreen } from "./screens/ReportsScreen.tsx";
 import { TodayScreen } from "./screens/TodayScreen.tsx";
 import { TransactionsScreen } from "./screens/TransactionsScreen.tsx";
@@ -18,7 +19,7 @@ const reader = createReader(getToken);
 const todayIso = () => new Date().toISOString().slice(0, 10);
 
 type Screen = "today" | "tx" | "clients" | "reports" | "ar";
-const NAV: [Screen, string][] = [["today", "Today"], ["tx", "Transactions"], ["clients", "Clients"], ["reports", "Reports"], ["ar", "Unpaid"]];
+const NAV: [Screen, string][] = [["today", "Today"], ["tx", "Transactions"], ["clients", "Clients"], ["reports", "Reports"], ["ar", "Invoices"]];
 
 export function App() {
   const demo = demoActive(window.location.search); // dev server only: fixtures, no sign-in
@@ -45,6 +46,15 @@ export function App() {
       .catch(() => { if (live) setNameMap(NO_NAMES); }); // codes shown on any failure
     return () => { live = false; };
   }, [signedIn, namesOn]);
+  // Invoice emails (recipients and text) are read like names: names on only, memory only. Demo uses made-up fixtures.
+  const [outbox, setOutbox] = useState<OutboxItem[] | null>(demo ? parseOutbox(demoOutbox) : null);
+  const [requested, setRequested] = useState<Requested>(new Map());
+  const loadOutbox = useCallback(async () => {
+    if (demo) return;
+    if (!signedIn || !namesOn) { setOutbox(null); return; }
+    try { setOutbox(parseOutbox(await reader.readOutbox())); } catch { setOutbox(null); }
+  }, [demo, signedIn, namesOn]);
+  useEffect(() => { void loadOutbox(); }, [loadOutbox]);
   const label = useMemo(() => makeLabeler(namesOn ? nameMap : NO_NAMES), [namesOn, nameMap]);
   const toggleNames = () => { const next = !namesPref; setNamesPref(next); saveNamesPref(next); };
 
@@ -52,18 +62,19 @@ export function App() {
     setBusy(true); setError("");
     try {
       setTabs(await reader.read(force));
+      if (force) await loadOutbox();
     } catch (e) {
       if (e instanceof AuthExpiredError) { setSignedIn(false); setTabs(null); }
       setError(e instanceof Error ? e.message : "Something went wrong");
     } finally { setBusy(false); }
-  }, []);
+  }, [loadOutbox]);
 
   const doSignIn = async () => {
     setError("");
     try { await signIn(); setSignedIn(true); await load(true); }
     catch (e) { setError(e instanceof Error ? e.message : "Sign-in failed"); }
   };
-  const doSignOut = () => { signOut(); reader.clear(); setNameMap(NO_NAMES); setTabs(null); setSignedIn(false); setSent([]); };
+  const doSignOut = () => { signOut(); reader.clear(); setNameMap(NO_NAMES); setTabs(null); setSignedIn(false); setSent([]); setOutbox(null); setRequested(new Map()); };
 
   const model = useMemo(() => (tabs ? buildModel(tabs, todayIso(), sent) : null), [tabs, sent]);
 
@@ -73,6 +84,14 @@ export function App() {
     try { if (!demo) await reader.appendDecision(row); }
     catch (e) { if (e instanceof AuthExpiredError) { setSignedIn(false); setTabs(null); } throw e; }
     setSent((s) => [...s, { entry: row[0], account: row[1], note: row[2], who: row[3], when: row[4] }]);
+  };
+
+  const requestSend = async (action: SendAction, item?: OutboxItem) => {
+    if (!who) return;
+    const row = sendRow(action, item?.number ?? "", item?.fingerprint ?? "", who);
+    try { if (!demo) await reader.appendSend(row); }
+    catch (e) { if (e instanceof AuthExpiredError) { setSignedIn(false); setTabs(null); } throw e; }
+    if (item && action !== "DRAFT") setRequested((r) => new Map(r).set(item.number, action));
   };
 
   if (!who) {
@@ -124,7 +143,10 @@ export function App() {
         {screen === "tx" && <TransactionsScreen m={model} filter={filter} setFilter={setFilter} openTx={setBooking} />}
         {screen === "clients" && <ClientsScreen m={model} />}
         {screen === "reports" && <ReportsScreen m={model} filterByCode={filterByCode} />}
-        {screen === "ar" && <ArScreen items={model.invoices} today={model.today} />}
+        {screen === "ar" && (
+          <InvoicesScreen items={model.invoices} today={model.today} outbox={outbox} requested={requested}
+            onSend={(i) => requestSend("SEND", i)} onCancel={(i) => requestSend("CANCEL", i)} onDraft={() => requestSend("DRAFT")} />
+        )}
       </main>
       <nav>
         {NAV.map(([s, label]) => (

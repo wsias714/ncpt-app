@@ -96,3 +96,14 @@ nav button.on { color: var(--accent); font-weight: 600; }
 @media (max-width: 480px) { nav button { font-size: .85rem; padding: 14px 4px; } }
 .clrow2 .grow .muted { text-align: left; }
 .figure { max-width: 640px; }
+
+.mail { list-style: none; }
+.mailhead { display: grid; grid-template-columns: auto 1fr; gap: 2px 10px; margin: 10px 0; font-size: .9rem; }
+.mailhead dt { color: var(--muted); } .mailhead dd { margin: 0; overflow-wrap: anywhere; }
+.mailbody { white-space: pre-wrap; font: inherit; background: var(--bg); border: 1px solid var(--line); border-radius: 8px; padding: 10px; margin: 0 0 12px; }
+.btnrow { display: flex; gap: 8px; } .btnrow .btn { flex: 1; }
+.btn.alt { background: transparent; color: var(--fg); border: 1px solid var(--line); }
+.ok { color: var(--accent); }
+.list .mail { padding: 12px; }
+.mail .btn.big, .mail > .btn { width: 100%; }
+.mail a { color: var(--accent); }

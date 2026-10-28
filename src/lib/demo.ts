@@ -1,9 +1,11 @@
 // Dev-server only (`npm run dev`, ?demo=1): renders the app from the made-up fixtures with no sign-in,
 // for visual checks. import.meta.env.DEV is false in the production build, so this never ships active.
 import {
-  accountsFixture, bsFixture, clientsFixture, decisionsFixture, invoicesFixture, monthlyFixture, pnlFixture, summaryFixture, txFixture,
+  accountsFixture, bsFixture, clientsFixture, decisionsFixture, invoicesFixture, monthlyFixture, outboxFixture, pnlFixture, summaryFixture, txFixture,
 } from "./fixtures.ts";
 import type { Tabs } from "./sheets.ts";
+
+export const demoOutbox = outboxFixture;
 
 export const demoActive = (search: string): boolean => import.meta.env.DEV && new URLSearchParams(search).has("demo");
 

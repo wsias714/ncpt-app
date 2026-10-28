@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import { AuthExpiredError, TABS, appendUrl, batchUrl, createReader, decisionRow } from "./sheets.ts";
+import { AuthExpiredError, TABS, appendUrl, batchUrl, createReader, decisionRow, sendUrl } from "./sheets.ts";
 
 const ok = (values: unknown[][][]) => ({
   ok: true, status: 200,
@@ -62,5 +62,28 @@ describe("appendDecision", () => {
   it("throws on failure", async () => {
     const f = vi.fn(async () => ({ ok: false, status: 403, json: async () => ({}) }));
     await expect(createReader(() => "t", f, "S").appendDecision(["a"])).rejects.toThrow("403");
+  });
+});
+
+describe("invoice approvals", () => {
+  it("never reads the outbox in the batch, only on request", async () => {
+    expect(TABS as readonly string[]).not.toContain("App Outbox");
+    const f = vi.fn(async () => ({ ok: true, status: 200, json: async () => ({ values: [["Number"]] }) }));
+    expect(await createReader(() => "tok", f, "SHEET").readOutbox()).toEqual([["Number"]]);
+    expect(decodeURIComponent((f.mock.calls[0] as unknown as [string])[0])).toContain("/values/App Outbox?");
+  });
+  it("appends one row to App Send only", async () => {
+    const f = vi.fn(async () => ({ ok: true, status: 200, json: async () => ({}) }));
+    await createReader(() => "tok", f, "SHEET").appendSend(["9101", "fp", "SEND", "Julie", "2030-03-15T10:00:00.000Z"]);
+    const [url, init] = f.mock.calls[0] as unknown as [string, { method: string; body: string }];
+    expect(url).toBe(sendUrl("SHEET"));
+    expect(decodeURIComponent(url)).toContain("App Send!A:E:append");
+    expect(JSON.parse(init.body)).toEqual({ values: [["9101", "fp", "SEND", "Julie", "2030-03-15T10:00:00.000Z"]] });
+  });
+  it("surfaces a failed or expired save", async () => {
+    const bad = vi.fn(async () => ({ ok: false, status: 403, json: async () => ({}) }));
+    await expect(createReader(() => "t", bad, "S").appendSend(["x"])).rejects.toThrow("Could not save (403)");
+    const exp = vi.fn(async () => ({ ok: false, status: 401, json: async () => ({}) }));
+    await expect(createReader(() => "t", exp, "S").appendSend(["x"])).rejects.toBeInstanceOf(AuthExpiredError);
   });
 });

@@ -2,8 +2,11 @@
 // Per-session in-memory cache only: nothing is written to localStorage or IndexedDB.
 // `Customer Codes` is read separately, only when names are on, into memory only.
 // The raw `Invoices`, `Journal`, `Customers`, `Payers` and `Review` tabs are never read.
+// `App Outbox` (invoice emails, with recipients) is read like Customer Codes: names on only, memory only.
+// Writes are appended rows to two input tabs: `App Decisions` (bookings) and `App Send` (invoice approvals).
 import type { Grid } from "./parse.ts";
 import { CODES_TAB } from "./names.ts";
+import { OUTBOX_TAB, SEND_TAB } from "./outbox.ts";
 import type { Who } from "./who.ts";
 
 // Set at build time (repo variable VITE_SHEET_ID, or .env.local); deliberately not in the source.
@@ -38,6 +41,10 @@ export function tabUrl(sheetId: string, tab: string): string {
 
 export function appendUrl(sheetId: string): string {
   return `${BASE(sheetId)}/values/${encodeURIComponent(DECISIONS_TAB + "!A:E")}:append?valueInputOption=RAW&insertDataOption=INSERT_ROWS`;
+}
+
+export function sendUrl(sheetId: string): string {
+  return `${BASE(sheetId)}/values/${encodeURIComponent(SEND_TAB + "!A:E")}:append?valueInputOption=RAW&insertDataOption=INSERT_ROWS`;
 }
 
 // [Entry, Account, Note, Who, When]
@@ -85,16 +92,24 @@ export function createReader(
       if (res.status === 401) throw new AuthExpiredError("Sign-in expired");
       return res.ok ? (((await res.json()) as { values?: Grid }).values ?? []) : [];
     },
-    // The app's only write: one appended row on App Decisions.
-    async appendDecision(row: string[]): Promise<void> {
-      const res = await fetchFn(appendUrl(sheetId), {
-        method: "POST",
-        headers: { ...auth(), "Content-Type": "application/json" },
-        body: JSON.stringify({ values: [row] }),
-      });
+    // Runtime-only: invoice emails awaiting approval. Missing tab = empty.
+    async readOutbox(): Promise<Grid> {
+      const res = await fetchFn(tabUrl(sheetId, OUTBOX_TAB), { headers: auth() });
       if (res.status === 401) throw new AuthExpiredError("Sign-in expired");
-      if (!res.ok) throw new Error(`Could not save (${res.status})`);
+      return res.ok ? (((await res.json()) as { values?: Grid }).values ?? []) : [];
     },
+    // Writes: one appended row on App Decisions (a booking) or on App Send (an invoice approval).
+    async appendDecision(row: string[]): Promise<void> { return append(appendUrl(sheetId), row); },
+    async appendSend(row: string[]): Promise<void> { return append(sendUrl(sheetId), row); },
     clear(): void { cache = null; },
   };
+  async function append(url: string, row: string[]): Promise<void> {
+    const res = await fetchFn(url, {
+      method: "POST",
+      headers: { ...auth(), "Content-Type": "application/json" },
+      body: JSON.stringify({ values: [row] }),
+    });
+    if (res.status === 401) throw new AuthExpiredError("Sign-in expired");
+    if (!res.ok) throw new Error(`Could not save (${res.status})`);
+  }
 }

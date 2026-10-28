@@ -3,7 +3,7 @@
 Notes for Claude Code sessions in this repo.
 
 ## Project
-NCPT Books app: a phone-first PWA (React + Vite + TypeScript) that fronts the NCPT Books Google Sheet for Wade and Julie. Plan and decisions (authoritative): `~/Projects/CFO/ncpt_books/docs/MOBILE-APP-PLAN.md`. Built: Today, Transactions (booking sheet), Reports, Unpaid. The app reads only the `App *` tabs plus `P&L`, `Balance Sheet`, `Accounts` and writes only appended rows to `App Decisions` (never read `Invoices`, `Journal`, `Customers`, `Payers`, `Review`); phases 2-5 are in README ROADMAP.
+NCPT Books app: a phone-first PWA (React + Vite + TypeScript) that fronts the NCPT Books Google Sheet for Wade and Julie. Plan and decisions (authoritative): `~/Projects/CFO/ncpt_books/docs/MOBILE-APP-PLAN.md`. Built: Today, Transactions (booking sheet), Reports, Unpaid. The app reads only the `App *` tabs plus `P&L`, `Balance Sheet`, `Accounts` and writes only appended rows to `App Decisions` and `App Send` (invoice approvals). It also reads `App Outbox` (recipients and email text) at runtime when names are on, like Customer Codes (never read `Invoices`, `Journal`, `Customers`, `Payers`, `Review`); phases 2-5 are in README ROADMAP.
 
 ## Deploy rule
 GitHub Pages from `main` via `.github/workflows/deploy.yml`. NOT enabled: there is no remote. Do not create a GitHub repo, add a remote or push until Wade okays it (private repo, SSH remote `git@github.com:wsias714/ncpt-app.git`). Work on a branch, run `npm run check`, merge to `main` to deploy. At that point also register the app (bench `config/projects.json`, `bench/projects/`, `obligations/reference/apps.md`).
@@ -19,7 +19,7 @@ GitHub Pages from `main` via `.github/workflows/deploy.yml`. NOT enabled: there 
 - AI tools driving the app MUST always open it with `?names=off` (e.g. `http://localhost:5173/?names=off`). That skips the `Customer Codes` fetch entirely. Never screenshot or read a page that has names on. Do not read the `Customers`, `Payers`, `Journal` or `Review` tabs.
 
 ## Rules
-- The app never sends email, pays, or files anything. It drafts, records and queues; a person executes.
+- The app never pays or files anything. It never sends email itself: Julie or Wade approves a previewed invoice email (Wade, 2026-10-28) and the Apps Script in Julie's account sends it after re-checking the draft. AI tools never approve, send or read `App Outbox` (it is skipped with `?names=off`). Never add a Gmail or other new OAuth scope to the app for this.
 - No patient identifiers (names, emails, phones, addresses, clinical info) in the repo, fixtures, tests, logs, storage or screenshots. Use codes ("Customer V") and made-up numbers.
 - No secrets. The OAuth client ID is public; there is no client secret anywhere.
 - Run `npm run check` before every commit.

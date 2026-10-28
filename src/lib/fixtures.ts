@@ -115,3 +115,12 @@ export const clientsFixture: Grid = [
   ["2030-03", "Customer C", 300, 0, 1, 1],
   ["2030-03", "Customer V", 1300, 2600, 6.5, 1],
 ];
+
+// Made-up invoice emails (example.com only). A real App Outbox has recipients, so it is never fixture data.
+export const outboxFixture: Grid = [
+  ["Number", "Code", "Invoice date", "Due", "Total", "To", "Cc", "Subject", "Body", "Attachment", "PDF", "Lines", "Status", "Fingerprint", "Prepared"],
+  ["9101", "Customer A", "2030-03-01", "2030-03-31", 200, "billing@example.com", "", "March invoice", "Hello,\r\nInvoice attached.", "NCPT Invoice 9101.pdf", "https://drive.example.com/9101", "3/4/2030 x1 @ $200.00", "READY", "fp9101", "2030-03-31T08:00:00Z"],
+  ["9102", "Customer B", "2030-03-01", "2030-03-31", 450, "", "", "March invoice", "Hello", "NCPT Invoice 9102.pdf", "https://drive.example.com/9102", "3/6/2030 x2 @ $225.00", "READY", "fp9102", "2030-03-31T08:00:00Z"],
+  ["", "Customer C", "", "", 0, "", "", "", "", "", "", "", "READY", "", ""],
+  ["9100", "Customer D", "2030-02-01", "2030-02-28", 300, "", "", "", "", "", "https://drive.example.com/9100", "2/5/2030 x1 @ $300.00", "SENT", "", "2030-03-02T09:00:00Z"],
+];

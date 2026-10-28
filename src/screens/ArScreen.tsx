@@ -26,16 +26,16 @@ function Group({ title, items }: { title: string; items: ArItem[] }) {
   );
 }
 
-export function ArScreen({ items, today }: { items: ArItem[]; today: string }) {
+export function ArScreen({ items, today, hideDrafts = false }: { items: ArItem[]; today: string; hideDrafts?: boolean }) {
   const st = invoiceStats(items, today);
   const overdueNums = new Set(st.overdue.map((i) => i.number));
   return (
     <section>
-      <h2>Unpaid invoices <span className="muted">{money(st.outstandingTotal)}</span></h2>
+      {hideDrafts ? <h3>Unpaid <span className="muted">{money(st.outstandingTotal)}</span></h3> : <h2>Unpaid invoices <span className="muted">{money(st.outstandingTotal)}</span></h2>}
       {items.length === 0 && <p className="muted">No invoices published yet.</p>}
       <Group title="Overdue" items={st.overdue} />
       <Group title="Outstanding" items={st.outstanding.filter((i) => !overdueNums.has(i.number))} />
-      <Group title="Ready to send (drafts)" items={st.drafts} />
+      {!hideDrafts && <Group title="Ready to send (drafts)" items={st.drafts} />}
       <Group title="Paid, last 30 days" items={st.paid30} />
     </section>
   );
