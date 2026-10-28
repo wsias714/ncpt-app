@@ -71,7 +71,7 @@ describe("parseSummary", () => {
     expect(compareYears(monthly, "2029-12-31", "YTD").priorMonths).toBe(0);
   });
   it("builds past-year statements only when the tab has data", () => {
-    const tabs = { ...demoTabs, "P&L 2025": pnlFixture };
+    const tabs = { ...demoTabs, "P&L 2025": pnlFixture, "P&L 2024": [], "Balance Sheet 2025": [], "Balance Sheet 2024": [] };
     const m = buildModel(tabs, "2030-03-15");
     expect(Object.keys(m.pnlHistory)).toEqual(["2025"]);
     expect(m.pnlHistory["2025"].sections.map((s) => s.title)).toEqual(["Income", "Expense"]);
