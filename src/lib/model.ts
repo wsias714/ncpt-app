@@ -16,7 +16,12 @@ export interface Model {
   accountNames: Map<string, string>; // code -> name, so screens show names only
   pnl: Pnl;
   bs: BalanceSheet;
+  // Past years keyed by year (2025, 2024 from Wave's books); a year with nothing published is left out.
+  pnlHistory: Record<string, Pnl>;
+  bsHistory: Record<string, BalanceSheet>;
 }
+
+export const HISTORY_YEARS = ["2025", "2024"] as const;
 
 // `sent` are decisions saved this session (memory only) so rows show "pending" before a refresh.
 export function buildModel(tabs: Tabs, today: string, sent: Decision[] = []): Model {
@@ -32,5 +37,7 @@ export function buildModel(tabs: Tabs, today: string, sent: Decision[] = []): Mo
     accounts,
     pnl: parsePnl(tabs["P&L"]),
     bs: parseBalanceSheet(tabs["Balance Sheet"]),
+    pnlHistory: Object.fromEntries(HISTORY_YEARS.map((y) => [y, parsePnl(tabs[`P&L ${y}`])]).filter(([, p]) => (p as Pnl).sections.length > 0)),
+    bsHistory: Object.fromEntries(HISTORY_YEARS.map((y) => [y, parseBalanceSheet(tabs[`Balance Sheet ${y}`])]).filter(([, b]) => (b as BalanceSheet).sections.length > 0)),
   };
 }

@@ -1,10 +1,12 @@
 import { describe, expect, it } from "vitest";
 import {
-  beforeOwnerPay, compareYears, ownerPayInMonths, periodMonths, totals, NO_FILTER, UNLABELED, accountPickerOrder, customerCode, daysBetween, filterTransactions, invoiceStats, isPending,
+  beforeOwnerPay, compareYears, monthlyYears, ownerPayInMonths, periodMonths, totals, trendMonths, NO_FILTER, UNLABELED, accountPickerOrder, customerCode, daysBetween, filterTransactions, invoiceStats, isPending,
   latestDecisions, money, needsBooking, parseAccounts, parseAppInvoices, parseBalanceSheet, parseDecisions,
   parseMonthly, parsePnl, parseSummary, parseTransactions, recentTransactions, toIsoDate, toNumber, totalOpen,
   txCategories, txMonths, wagesTotal,
 } from "./parse.ts";
+import { demoTabs } from "./demo.ts";
+import { buildModel } from "./model.ts";
 import {
   accountsFixture, bsFixture, decisionsFixture, invoicesFixture, monthlyFixture, pnlFixture, summaryFixture, txFixture,
 } from "./fixtures.ts";
@@ -55,6 +57,25 @@ describe("parseSummary", () => {
     expect(y.prior.net).toBe(3900);
     expect(y.priorLabel).toBe("2029-01 to 2029-03");
     expect(compareYears(monthly, "2029-03-01", "1M").priorMonths).toBe(0); // no 2028
+  });
+  it("trend ranges reach back to every published month, and years are listed newest first", () => {
+    const monthly = parseMonthly(monthlyFixture);
+    const t = (r: "3M" | "6M" | "YTD" | "12M" | "ALL") => trendMonths(monthly, "2030-03-15", r).map((x) => x.month);
+    expect(t("3M")).toEqual(["2030-01", "2030-02", "2030-03"]);
+    expect(t("YTD")).toEqual(["2030-01", "2030-02", "2030-03"]);
+    expect(t("12M")).toHaveLength(5);
+    expect(t("ALL")).toEqual(["2029-02", "2029-03", "2030-01", "2030-02", "2030-03"]);
+    expect(trendMonths(monthly, "2029-03-01", "ALL").map((x) => x.month)).toEqual(["2029-02", "2029-03"]);
+    expect(monthlyYears(monthly)).toEqual(["2030", "2029"]);
+    // a past year compares against the year before it
+    expect(compareYears(monthly, "2029-12-31", "YTD").priorMonths).toBe(0);
+  });
+  it("builds past-year statements only when the tab has data", () => {
+    const tabs = { ...demoTabs, "P&L 2025": pnlFixture };
+    const m = buildModel(tabs, "2030-03-15");
+    expect(Object.keys(m.pnlHistory)).toEqual(["2025"]);
+    expect(m.pnlHistory["2025"].sections.map((s) => s.title)).toEqual(["Income", "Expense"]);
+    expect(m.bsHistory).toEqual({});
   });
   it("treats none as clear and survives empty", () => {
     expect(parseSummary([["Key", "Value"], ["close_blockers", "none"]]).closeBlockers).toEqual([]);

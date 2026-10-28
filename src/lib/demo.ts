@@ -16,4 +16,5 @@ export const demoTabs: Tabs = {
   "P&L": pnlFixture,
   "Balance Sheet": bsFixture,
   "Accounts": accountsFixture,
+  "P&L 2025": pnlFixture, "P&L 2024": [], "Balance Sheet 2025": bsFixture, "Balance Sheet 2024": [], // fixtures stand in for a past year
 };

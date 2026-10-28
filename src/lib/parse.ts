@@ -352,6 +352,21 @@ export function periodMonths(monthly: MonthRow[], asOf: string, p: Period): Mont
   return rows.slice(-Number(p[0]));
 }
 
+// Trends can also look further back: the last 12 months, or every month published.
+export type TrendRange = Period | "12M" | "ALL";
+export const TREND_RANGES: TrendRange[] = ["3M", "6M", "YTD", "12M", "ALL"];
+export function trendMonths(monthly: MonthRow[], asOf: string, r: TrendRange): MonthRow[] {
+  if (r !== "12M" && r !== "ALL") return periodMonths(monthly, asOf, r);
+  const upto = asOf.slice(0, 7) || monthly[monthly.length - 1]?.month || "";
+  const rows = monthly.filter((x) => x.month <= upto);
+  return r === "ALL" ? rows : rows.slice(-12);
+}
+
+// Years that have monthly rows, newest first.
+export function monthlyYears(monthly: MonthRow[]): string[] {
+  return [...new Set(monthly.map((r) => r.month.slice(0, 4)))].sort().reverse();
+}
+
 export interface Totals {
   months: number; income: number; expense: number; net: number;
   netWages: number; k401: number; ownerPay: number; beforeOwnerPay: number;

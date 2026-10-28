@@ -1,11 +1,17 @@
-import { PERIODS, PERIOD_LABEL, type Period } from "../lib/parse.ts";
+import { PERIODS, PERIOD_LABEL, type Period, type TrendRange } from "../lib/parse.ts";
 
-export function PeriodToggle({ value, onChange }: { value: Period; onChange: (p: Period) => void }) {
+const LABEL: Record<string, string> = { ...PERIOD_LABEL, "12M": "Last 12 months", ALL: "Every month published" };
+
+// Generic over the option list so Trends can add 12M and All without changing the other screens.
+export function PeriodToggle<T extends string = Period>({ value, onChange, options }: { value: T; onChange: (p: T) => void; options?: readonly T[] }) {
+  const list = (options ?? (PERIODS as readonly string[] as readonly T[]));
   return (
     <div className="seg small" role="group" aria-label="Time period">
-      {PERIODS.map((p) => (
-        <button key={p} className={value === p ? "on" : ""} onClick={() => onChange(p)} title={PERIOD_LABEL[p]} aria-pressed={value === p}>{p}</button>
+      {list.map((p) => (
+        <button key={p} className={value === p ? "on" : ""} onClick={() => onChange(p)} title={LABEL[p]} aria-pressed={value === p}>{p === "ALL" ? "All" : p}</button>
       ))}
     </div>
   );
 }
+
+export type { TrendRange };

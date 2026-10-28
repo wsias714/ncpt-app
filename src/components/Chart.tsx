@@ -36,7 +36,7 @@ function Frame({ labels, children, legend, title, lo, hi }: {
       <svg className="chart" viewBox={`0 0 ${W} ${H}`} role="img" aria-label={`${title}, ${labels[0] ?? ""} to ${labels[labels.length - 1] ?? ""}`}>
         {children}
         {labels.map((l, i) => i % every === 0 && (
-          <text key={l + i} x={PAD.l + step * (i + 0.5)} y={H - 4} textAnchor="middle" className="tick">{l.slice(5) || l}</text>
+          <text key={l + i} x={PAD.l + step * (i + 0.5)} y={H - 4} textAnchor="middle" className="tick">{labels.length > 12 ? l.slice(2) : l.slice(5) || l}</text>
         ))}
       </svg>
       <div className="legend">
