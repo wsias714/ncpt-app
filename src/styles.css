@@ -86,3 +86,13 @@ nav button.on { color: var(--accent); font-weight: 600; }
 .chart .tick { fill: var(--muted); font-size: 9px; }
 .legend { display: flex; flex-wrap: wrap; gap: 4px 12px; font-size: .8rem; color: var(--muted); }
 .legend i { display: inline-block; width: 10px; height: 10px; border-radius: 2px; margin-right: 4px; }
+.clhead, .clrow { display: grid; grid-template-columns: .7fr 1.2fr .8fr .8fr .6fr 1fr; gap: 6px; font-size: .8rem; padding: 8px 0; border-bottom: 1px solid var(--line); }
+.clhead { border-bottom: 2px solid var(--line); }
+.clrow span:not(:first-child), .clhead strong:not(:first-child) { text-align: right; }
+.clhead2, .clrow2 { display: flex; gap: 10px; font-size: .85rem; padding: 8px 0; border-bottom: 1px solid var(--line); }
+.clhead2 strong { flex: 0 0 64px; text-align: right; } .clhead2 strong:first-child { flex: 1; text-align: left; }
+.clrow2 span:not(.grow) { flex: 0 0 64px; text-align: right; font-variant-numeric: tabular-nums; }
+.clrow2 .grow .muted { display: block; font-size: .75rem; }
+@media (max-width: 480px) { nav button { font-size: .85rem; padding: 14px 4px; } }
+.clrow2 .grow .muted { text-align: left; }
+.figure { max-width: 640px; }

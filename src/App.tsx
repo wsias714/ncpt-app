@@ -9,6 +9,7 @@ import { NO_FILTER, type Decision, type Tx, type TxFilter } from "./lib/parse.ts
 import { AuthExpiredError, createReader, decisionRow, type Tabs } from "./lib/sheets.ts";
 import { getWho, setWho, type Who } from "./lib/who.ts";
 import { ArScreen } from "./screens/ArScreen.tsx";
+import { ClientsScreen } from "./screens/ClientsScreen.tsx";
 import { ReportsScreen } from "./screens/ReportsScreen.tsx";
 import { TodayScreen } from "./screens/TodayScreen.tsx";
 import { TransactionsScreen } from "./screens/TransactionsScreen.tsx";
@@ -16,8 +17,8 @@ import { TransactionsScreen } from "./screens/TransactionsScreen.tsx";
 const reader = createReader(getToken);
 const todayIso = () => new Date().toISOString().slice(0, 10);
 
-type Screen = "today" | "tx" | "reports" | "ar";
-const NAV: [Screen, string][] = [["today", "Today"], ["tx", "Transactions"], ["reports", "Reports"], ["ar", "Unpaid"]];
+type Screen = "today" | "tx" | "clients" | "reports" | "ar";
+const NAV: [Screen, string][] = [["today", "Today"], ["tx", "Transactions"], ["clients", "Clients"], ["reports", "Reports"], ["ar", "Unpaid"]];
 
 export function App() {
   const demo = demoActive(window.location.search); // dev server only: fixtures, no sign-in
@@ -121,6 +122,7 @@ export function App() {
       <main className="content">
         {screen === "today" && <TodayScreen m={model} openTx={setBooking} goUnpaid={() => go("ar")} goTransactions={goTx} goReports={() => go("reports")} />}
         {screen === "tx" && <TransactionsScreen m={model} filter={filter} setFilter={setFilter} openTx={setBooking} />}
+        {screen === "clients" && <ClientsScreen m={model} />}
         {screen === "reports" && <ReportsScreen m={model} filterByCode={filterByCode} />}
         {screen === "ar" && <ArScreen items={model.invoices} today={model.today} />}
       </main>

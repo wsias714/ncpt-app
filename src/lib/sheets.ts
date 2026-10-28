@@ -12,7 +12,7 @@ export const SHEET_ID: string = (import.meta.env.VITE_SHEET_ID as string | undef
 export const TABS = [
   "App Summary", "App Transactions", "App Monthly", "App Invoices", "App Decisions",
   "P&L", "Balance Sheet", "Accounts",
-  "P&L 2025", "P&L 2024", "Balance Sheet 2025", "Balance Sheet 2024", // history years, from Wave's books
+  "App Clients", "P&L 2025", "P&L 2024", "Balance Sheet 2025", "Balance Sheet 2024", // history years, from Wave's books
 ] as const;
 export type Tab = (typeof TABS)[number];
 export type Tabs = Record<Tab, Grid>;

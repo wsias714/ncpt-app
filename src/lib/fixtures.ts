@@ -102,3 +102,16 @@ export const bsFixture: Grid = [
   ["", "Net income, current year", 2400, 5400, 6830.5],
   ["", "Total equity", 7820, 10820, 12250.5],
 ];
+
+export const clientsFixture: Grid = [
+  ["Month", "Code", "Invoiced", "Collected", "Visits", "Invoices"],
+  ["2029-02", "Customer A", 400, 200, 2, 2],
+  ["2029-03", "Customer A", 200, 400, 1, 1],
+  ["2029-03", "Customer B", 600, 0, 3, 1],
+  ["2030-01", "Customer A", 600, 600, 3, 3],
+  ["2030-01", "Customer V", 2600, 0, 13, 1],
+  ["2030-02", "Customer B", 400, 600, 2, 2],
+  ["2030-02", "Customer V", 2600, 2600, 12.5, 1],
+  ["2030-03", "Customer C", 300, 0, 1, 1],
+  ["2030-03", "Customer V", 1300, 2600, 6.5, 1],
+];

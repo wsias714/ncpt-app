@@ -25,8 +25,8 @@ export function Sparkline({ values, label }: { values: number[]; label: string }
   );
 }
 
-function Frame({ labels, children, legend, title, lo, hi }: {
-  labels: string[]; children: React.ReactNode; legend: Series[]; title: string; lo: number; hi: number;
+function Frame({ labels, children, legend, title, lo, hi, fmt = money }: {
+  labels: string[]; children: React.ReactNode; legend: Series[]; title: string; lo: number; hi: number; fmt?: (n: number) => string;
 }) {
   const every = Math.ceil(labels.length / 6);
   const step = (W - PAD.l - PAD.r) / Math.max(1, labels.length);
@@ -41,13 +41,13 @@ function Frame({ labels, children, legend, title, lo, hi }: {
       </svg>
       <div className="legend">
         {legend.map((s) => <span key={s.name}><i style={{ background: s.color }} />{s.name}</span>)}
-        <span className="muted">range {money(lo)} to {money(hi)}</span>
+        <span className="muted">range {fmt(lo)} to {fmt(hi)}</span>
       </div>
     </figure>
   );
 }
 
-export function BarChart({ title, labels, series }: { title: string; labels: string[]; series: Series[] }) {
+export function BarChart({ title, labels, series, fmt }: { title: string; labels: string[]; series: Series[]; fmt?: (n: number) => string }) {
   if (!labels.length) return null;
   const [lo, hi] = extent(series.flatMap((s) => s.values));
   const plotH = H - PAD.t - PAD.b;
@@ -55,7 +55,7 @@ export function BarChart({ title, labels, series }: { title: string; labels: str
   const step = (W - PAD.l - PAD.r) / labels.length;
   const bw = (step * 0.8) / series.length;
   return (
-    <Frame labels={labels} legend={series} title={title} lo={lo} hi={hi}>
+    <Frame labels={labels} legend={series} title={title} lo={lo} hi={hi} fmt={fmt}>
       <line x1={PAD.l} x2={W - PAD.r} y1={y(0)} y2={y(0)} className="axis" />
       {labels.map((_, i) => series.map((s, k) => {
         const v = s.values[i] ?? 0;
@@ -66,7 +66,7 @@ export function BarChart({ title, labels, series }: { title: string; labels: str
   );
 }
 
-export function LineChart({ title, labels, series }: { title: string; labels: string[]; series: Series[] }) {
+export function LineChart({ title, labels, series, fmt }: { title: string; labels: string[]; series: Series[]; fmt?: (n: number) => string }) {
   if (labels.length < 2) return null;
   const [lo, hi] = extent(series.flatMap((s) => s.values));
   const plotH = H - PAD.t - PAD.b;
@@ -74,7 +74,7 @@ export function LineChart({ title, labels, series }: { title: string; labels: st
   const step = (W - PAD.l - PAD.r) / labels.length;
   const x = (i: number) => PAD.l + step * (i + 0.5);
   return (
-    <Frame labels={labels} legend={series} title={title} lo={lo} hi={hi}>
+    <Frame labels={labels} legend={series} title={title} lo={lo} hi={hi} fmt={fmt}>
       <line x1={PAD.l} x2={W - PAD.r} y1={y(0)} y2={y(0)} className="axis" />
       {series.map((s) => (
         <polyline key={s.name} fill="none" stroke={s.color} strokeWidth="2" strokeLinejoin="round"
