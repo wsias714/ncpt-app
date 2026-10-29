@@ -124,3 +124,19 @@ export const outboxFixture: Grid = [
   ["", "Customer C", "", "", 0, "", "", "", "", "", "", "", "READY", "", ""],
   ["9100", "Customer D", "2030-02-01", "2030-02-28", 300, "", "", "", "", "", "https://drive.example.com/9100", "2/5/2030 x1 @ $300.00", "SENT", "", "2030-03-02T09:00:00Z"],
 ];
+
+// Made-up compliance rows (codes only). Dates sit around late Oct 2026 so the dev demo looks populated.
+export const deadlinesFixture: Grid = [
+  ["Id", "Title", "Domain", "Kind", "Period", "Due", "Raw due", "Rolled", "Days left", "State", "Blocker", "Method", "Level", "Verify", "Bench", "Note"],
+  ["X1", "Workers comp audit form", "NCPT", "insurance", "2026", "2026-10-26", "2026-10-26", "", -2, "open", "", "Insurer portal", "state", "", "ncpt-wc", ""],
+  ["X2", "Form 940 FUTA deposit Q3", "NCPT", "payroll", "2026Q3", "2026-10-30", "2026-10-30", "", 2, "open", "", "EFTPS", "federal", "", "ncpt-940", "Only if over $500"],
+  ["X3", "Form 941 Q3", "NCPT", "payroll", "2026Q3", "2026-11-02", "2026-10-31", "yes", 5, "open", "", "E-file", "federal", "", "ncpt-941", "Oct 31 is a Saturday"],
+  ["X4", "DE 9 and DE 9C Q3", "NCPT", "payroll", "2026Q3", "2026-11-02", "2026-10-31", "yes", 5, "done", "", "e-Services", "state", "", "ncpt-de9", ""],
+  ["X5", "Q4 payroll deposit", "NCPT", "payroll", "2026Q4", "2026-11-16", "2026-11-16", "", 19, "blocked", "Q4 payroll not run yet", "EFTPS", "federal", "", "ncpt-q4", ""],
+  ["X6", "Business license renewal", "NCPT", "license", "2027", "2026-12-15", "2026-12-15", "", 48, "open", "", "City portal", "local", "", "ncpt-license", ""],
+  ["X7", "Form 941 Q4", "NCPT", "payroll", "2026Q4", "2027-02-01", "2027-01-31", "yes", 96, "open", "", "E-file", "federal", "", "ncpt-941", ""],
+  ["X8", "W-2 and W-3", "NCPT", "payroll", "2026", "2027-02-01", "2027-01-31", "yes", 96, "open", "", "SSA Business Services", "federal", "", "ncpt-w2", ""],
+  ["X9", "1099-NEC filing", "NCPT", "payroll", "2026", "2027-02-01", "2027-01-31", "yes", 96, "verify", "", "IRIS", "federal", "Threshold for tax year 2026 is $2,000 (confirm)", "ncpt-1099", ""],
+  ["X10", "Sales tax permit review", "NCPT", "license", "", "", "", "", "", "undated", "", "", "state", "Confirm whether the permit applies", "", ""],
+  ["X11", "Form 944 annual payroll return", "NCPT", "payroll", "2026", "2027-01-31", "2027-01-31", "", 95, "exempt", "", "", "federal", "", "", "Files 941 quarterly instead"],
+];

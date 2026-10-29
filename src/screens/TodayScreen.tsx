@@ -2,10 +2,11 @@ import { useState } from "react";
 import { Sparkline } from "../components/Chart.tsx";
 import { PeriodToggle } from "../components/PeriodToggle.tsx";
 import { TxRow } from "../components/TxRow.tsx";
+import { band, dayLabel, daysLabel, nextDeadline } from "../lib/deadlines.ts";
 import type { Model } from "../lib/model.ts";
 import { invoiceStats, money, needsBooking, periodMonths, PERIOD_LABEL, recentTransactions, totals, wagesTotal, type Period, type Tx } from "../lib/parse.ts";
 
-interface Props { m: Model; openTx: (t: Tx) => void; goUnpaid: () => void; goTransactions: (reviewOnly: boolean) => void; goReports: () => void }
+interface Props { m: Model; openTx: (t: Tx) => void; goUnpaid: () => void; goTransactions: (reviewOnly: boolean) => void; goReports: () => void; goDeadlines: () => void }
 
 function Stat({ label, value, sub, warn }: { label: string; value: string; sub?: string; warn?: boolean }) {
   return (
@@ -17,7 +18,7 @@ function Stat({ label, value, sub, warn }: { label: string; value: string; sub?:
   );
 }
 
-export function TodayScreen({ m, openTx, goUnpaid, goTransactions, goReports }: Props) {
+export function TodayScreen({ m, openTx, goUnpaid, goTransactions, goReports, goDeadlines }: Props) {
   const s = m.summary;
   const [period, setPeriod] = useState<Period>("1M");
   const t = totals(periodMonths(m.monthly, s.asOf || m.today, period));
@@ -26,6 +27,7 @@ export function TodayScreen({ m, openTx, goUnpaid, goTransactions, goReports }: 
   const need = m.txs.filter((t) => needsBooking(t, m.latest));
   const recent = recentTransactions(m.txs, m.today);
   const spark = m.monthly.slice(-12).map((r) => r.netCash);
+  const next = nextDeadline(m.deadlines);
   const needCount = s.needsBooking ?? need.length;
 
   if (!s.present && m.txs.length === 0 && m.invoices.length === 0) {
@@ -51,6 +53,20 @@ export function TodayScreen({ m, openTx, goUnpaid, goTransactions, goReports }: 
           <div className="row sub"><span>Net wages {money(t.netWages)}</span><span>401k {money(t.k401)}</span></div>
         </div>
       </div>
+
+      {next && (
+        <button className="card tap nextdl" onClick={goDeadlines}>
+          <div className="row">
+            <div className="grow">
+              <div className="label">Next deadline</div>
+              <div className="dtitle">{next.title}</div>
+              <div className="sub">{dayLabel(next.due)}{next.method ? ` - ${next.method}` : ""}</div>
+              {next.state === "blocked" && next.blocker && <div className="sub warn">Blocked: {next.blocker}</div>}
+            </div>
+            <span className={"dchip " + band(next.daysLeft, next.state)}>{daysLabel(next)}</span>
+          </div>
+        </button>
+      )}
 
       <div className="card">
         <h3>Wages paid, year to date</h3>

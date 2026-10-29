@@ -1,4 +1,5 @@
 import { parseClients, type ClientRow } from "./clients.ts";
+import { parseDeadlines, type Deadline } from "./deadlines.ts";
 import {
   latestDecisions, parseAccounts, parseAppInvoices, parseBalanceSheet, parseDecisions, parseMonthly, parsePnl,
   parseSummary, parseTransactions, type Account, type ArItem, type BalanceSheet, type Decision, type MonthRow, type Pnl,
@@ -16,6 +17,7 @@ export interface Model {
   accounts: Account[];
   accountNames: Map<string, string>; // code -> name, so screens show names only
   clients: ClientRow[];
+  deadlines: Deadline[];
   pnl: Pnl;
   bs: BalanceSheet;
   // Past years keyed by year (2025, 2024 from Wave's books); a year with nothing published is left out.
@@ -39,6 +41,7 @@ export function buildModel(tabs: Tabs, today: string, sent: Decision[] = []): Mo
     accounts,
     pnl: parsePnl(tabs["P&L"]),
     clients: parseClients(tabs["App Clients"]),
+    deadlines: parseDeadlines(tabs["App Deadlines"], today),
     bs: parseBalanceSheet(tabs["Balance Sheet"]),
     pnlHistory: Object.fromEntries(HISTORY_YEARS.map((y) => [y, parsePnl(tabs[`P&L ${y}`])]).filter(([, p]) => (p as Pnl).sections.length > 0)),
     bsHistory: Object.fromEntries(HISTORY_YEARS.map((y) => [y, parseBalanceSheet(tabs[`Balance Sheet ${y}`])]).filter(([, b]) => (b as BalanceSheet).sections.length > 0)),

@@ -1,9 +1,9 @@
 :root {
-  --bg: #f5f7f6; --fg: #14201e; --muted: #5b6b68; --card: #fff; --line: #dbe3e1; --accent: #0f766e; --warn: #b42318;
+  --bg: #f5f7f6; --fg: #14201e; --muted: #5b6b68; --card: #fff; --line: #dbe3e1; --accent: #0f766e; --warn: #b42318; --amber: #b54708;
   color-scheme: light dark;
 }
 @media (prefers-color-scheme: dark) {
-  :root { --bg: #101716; --fg: #e8efed; --muted: #9bb0ac; --card: #19231f; --line: #2a3835; --accent: #34d3c3; --warn: #ff8a7a; }
+  :root { --bg: #101716; --fg: #e8efed; --muted: #9bb0ac; --card: #19231f; --line: #2a3835; --accent: #34d3c3; --warn: #ff8a7a; --amber: #fdb022; }
 }
 * { box-sizing: border-box; }
 body { margin: 0; background: var(--bg); color: var(--fg); font: 16px/1.4 system-ui, sans-serif; }
@@ -107,3 +107,16 @@ nav button.on { color: var(--accent); font-weight: 600; }
 .list .mail { padding: 12px; }
 .mail .btn.big, .mail > .btn { width: 100%; }
 .mail a { color: var(--accent); }
+
+.deadline { padding: 10px 0; }
+.dtitle { font-weight: 600; overflow-wrap: anywhere; }
+.dchip { align-self: flex-start; flex: 0 0 auto; display: inline-block; white-space: nowrap; padding: 2px 10px; border-radius: 999px; font-size: .8rem; font-weight: 600; background: var(--bg); border: 1px solid var(--line); color: var(--muted); }
+.dchip.overdue, .dchip.soon { color: var(--warn); border-color: var(--warn); }
+.dchip.month { color: var(--amber); border-color: var(--amber); }
+.dchip.later { color: var(--fg); }
+.dchip.done { color: var(--accent); border-color: var(--accent); }
+.dchip.blocked { color: var(--bg); background: var(--muted); border-color: var(--muted); }
+.fold { margin: 16px 0 0; } .fold summary { cursor: pointer; font-weight: 600; padding: 6px 0; }
+.card.tap { background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 12px; display: block; width: 100%; text-align: left; font: inherit; color: inherit; }
+nav button .short { display: none; }
+@media (max-width: 480px) { nav button .full { display: none; } nav button .short { display: inline; } }

@@ -10,6 +10,7 @@ import { NO_FILTER, type Decision, type Tx, type TxFilter } from "./lib/parse.ts
 import { AuthExpiredError, createReader, decisionRow, type Tabs } from "./lib/sheets.ts";
 import { getWho, setWho, type Who } from "./lib/who.ts";
 import { ClientsScreen } from "./screens/ClientsScreen.tsx";
+import { DeadlinesScreen } from "./screens/DeadlinesScreen.tsx";
 import { InvoicesScreen, type Requested } from "./screens/InvoicesScreen.tsx";
 import { ReportsScreen } from "./screens/ReportsScreen.tsx";
 import { TodayScreen } from "./screens/TodayScreen.tsx";
@@ -18,8 +19,9 @@ import { TransactionsScreen } from "./screens/TransactionsScreen.tsx";
 const reader = createReader(getToken);
 const todayIso = () => new Date().toISOString().slice(0, 10);
 
-type Screen = "today" | "tx" | "clients" | "reports" | "ar";
-const NAV: [Screen, string][] = [["today", "Today"], ["tx", "Transactions"], ["clients", "Clients"], ["reports", "Reports"], ["ar", "Invoices"]];
+type Screen = "today" | "tx" | "clients" | "reports" | "ar" | "deadlines";
+// [screen, label, short label for a narrow phone nav]
+const NAV: [Screen, string, string][] = [["today", "Today", "Today"], ["tx", "Transactions", "Txns"], ["clients", "Clients", "Clients"], ["reports", "Reports", "Reports"], ["ar", "Invoices", "Invoices"], ["deadlines", "Deadlines", "Due"]];
 
 export function App() {
   const demo = demoActive(window.location.search); // dev server only: fixtures, no sign-in
@@ -139,9 +141,10 @@ export function App() {
       </header>
       {error && <p className="warn pad">{error}</p>}
       <main className="content">
-        {screen === "today" && <TodayScreen m={model} openTx={setBooking} goUnpaid={() => go("ar")} goTransactions={goTx} goReports={() => go("reports")} />}
+        {screen === "today" && <TodayScreen m={model} openTx={setBooking} goUnpaid={() => go("ar")} goTransactions={goTx} goReports={() => go("reports")} goDeadlines={() => go("deadlines")} />}
         {screen === "tx" && <TransactionsScreen m={model} filter={filter} setFilter={setFilter} openTx={setBooking} />}
         {screen === "clients" && <ClientsScreen m={model} />}
+        {screen === "deadlines" && <DeadlinesScreen rows={model.deadlines} />}
         {screen === "reports" && <ReportsScreen m={model} filterByCode={filterByCode} />}
         {screen === "ar" && (
           <InvoicesScreen items={model.invoices} today={model.today} outbox={outbox} requested={requested}
@@ -149,8 +152,10 @@ export function App() {
         )}
       </main>
       <nav>
-        {NAV.map(([s, label]) => (
-          <button key={s} className={screen === s ? "on" : ""} onClick={() => (s === "tx" ? goTx(false) : go(s))}>{label}</button>
+        {NAV.map(([s, label, short]) => (
+          <button key={s} className={screen === s ? "on" : ""} aria-label={label} onClick={() => (s === "tx" ? goTx(false) : go(s))}>
+            <span className="full">{label}</span><span className="short">{short}</span>
+          </button>
         ))}
       </nav>
       {booking && (
