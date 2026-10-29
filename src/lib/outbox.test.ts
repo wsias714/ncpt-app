@@ -35,3 +35,19 @@ describe("canApprove", () => {
     expect(canApprove(sent)).toBe(false);
   });
 });
+
+// outbox.golden.json is written by the Apps Script simulation (CFO ncpt_books/apps-script/test_sim.js, synthetic
+// example.com customers): the real Send.gs output. Regenerate it there if the outbox columns change.
+import golden from "./outbox.golden.json";
+
+describe("contract with Send.gs", () => {
+  it("parses the grid the script actually writes and allows approving it", () => {
+    const items = parseOutbox(golden as unknown[][]);
+    expect(items.length).toBe((golden as unknown[][]).length - 1);
+    for (const i of items) {
+      expect(i.status).toBe("READY");
+      expect(i.fingerprint).toMatch(/^[0-9a-f]{24}$/);
+      expect(canApprove(i)).toBe(true);
+    }
+  });
+});
