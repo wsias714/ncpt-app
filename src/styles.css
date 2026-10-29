@@ -118,5 +118,28 @@ nav button.on { color: var(--accent); font-weight: 600; }
 .dchip.blocked { color: var(--bg); background: var(--muted); border-color: var(--muted); }
 .fold { margin: 16px 0 0; } .fold summary { cursor: pointer; font-weight: 600; padding: 6px 0; }
 .card.tap { background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 12px; display: block; width: 100%; text-align: left; font: inherit; color: inherit; }
+.figrow { display: flex; align-items: center; gap: 10px; padding: 8px 0; border-bottom: 1px solid var(--line); list-style: none; }
+.figrow .grow { overflow-wrap: anywhere; }
+.figrow.nob { border-bottom: 0; padding: 4px 0 0; }
+.figrow .amt { text-align: right; }
+.fieldlabel { display: flex; gap: 8px; }
+.figrow .line { flex: 0 0 4.8em; color: var(--muted); font-size: .8rem; font-weight: 600; }
+.copy { flex: 0 0 auto; min-width: 64px; background: transparent; color: var(--accent); border: 1px solid var(--accent); border-radius: 8px; padding: 6px 10px; font-size: .85rem; }
+.copyspace { flex: 0 0 64px; }
+.leg { padding: 10px 0; }
+.chk { padding: 8px 0; }
+.card.filed { margin-top: 16px; }
+.card h3 + .sub { margin-bottom: 8px; }
+h4 { margin: 14px 0 4px; font-size: .95rem; }
+.rowbtn { display: block; width: 100%; background: none; border: 0; padding: 0; text-align: left; font: inherit; color: inherit; }
+.accent { color: var(--accent); }
+.quick { margin: 8px 0 0; flex-wrap: wrap; }
+.quick .btn { flex: 1 1 140px; }
+.back { padding-left: 0; }
+.kitrow { margin-bottom: 0; }
+.list li.kitli { padding: 0 0 8px; border-bottom: 0; }
+.pick { padding: 6px 0; color: var(--fg); }
+.pick input { width: auto; margin: 0 6px 0 0; }
 nav button .short { display: none; }
 @media (max-width: 480px) { nav button .full { display: none; } nav button .short { display: inline; } }
+.content a { color: var(--accent); }

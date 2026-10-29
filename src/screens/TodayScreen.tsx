@@ -6,7 +6,7 @@ import { band, dayLabel, daysLabel, nextDeadline } from "../lib/deadlines.ts";
 import type { Model } from "../lib/model.ts";
 import { invoiceStats, money, needsBooking, periodMonths, PERIOD_LABEL, recentTransactions, totals, wagesTotal, type Period, type Tx } from "../lib/parse.ts";
 
-interface Props { m: Model; openTx: (t: Tx) => void; goUnpaid: () => void; goTransactions: (reviewOnly: boolean) => void; goReports: () => void; goDeadlines: () => void }
+interface Props { m: Model; openTx: (t: Tx) => void; goUnpaid: () => void; goTransactions: (reviewOnly: boolean) => void; goReports: () => void; goDeadlines: () => void; goPayroll: () => void }
 
 function Stat({ label, value, sub, warn }: { label: string; value: string; sub?: string; warn?: boolean }) {
   return (
@@ -18,7 +18,10 @@ function Stat({ label, value, sub, warn }: { label: string; value: string; sub?:
   );
 }
 
-export function TodayScreen({ m, openTx, goUnpaid, goTransactions, goReports, goDeadlines }: Props) {
+const APPROVAL_WORD = { approved: "approved", stale: "approval stale", none: "not approved", revoked: "revoked" } as const;
+const APPROVAL_CLASS = { approved: "done", stale: "month", none: "blocked", revoked: "overdue" } as const;
+
+export function TodayScreen({ m, openTx, goUnpaid, goTransactions, goReports, goDeadlines, goPayroll }: Props) {
   const s = m.summary;
   const [period, setPeriod] = useState<Period>("1M");
   const t = totals(periodMonths(m.monthly, s.asOf || m.today, period));
@@ -64,6 +67,19 @@ export function TodayScreen({ m, openTx, goUnpaid, goTransactions, goReports, go
               {next.state === "blocked" && next.blocker && <div className="sub warn">Blocked: {next.blocker}</div>}
             </div>
             <span className={"dchip " + band(next.daysLeft, next.state)}>{daysLabel(next)}</span>
+          </div>
+        </button>
+      )}
+
+      {m.payroll && m.payroll.amounts.length > 0 && (
+        <button className="card tap nextdl" onClick={goPayroll}>
+          <div className="row">
+            <div className="grow">
+              <div className="label">Quarter payroll run</div>
+              <div className="dtitle">{m.payroll.ref}</div>
+              <div className="sub">{m.payroll.checks.filter((c) => c.status === "block").length > 0 ? <span className="warn">A check is blocking approval</span> : "Review the figures and approve"}</div>
+            </div>
+            <span className={"dchip " + APPROVAL_CLASS[m.payroll.approval]}>{APPROVAL_WORD[m.payroll.approval]}</span>
           </div>
         </button>
       )}

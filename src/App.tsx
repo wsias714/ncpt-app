@@ -3,15 +3,18 @@ import { BookingSheet } from "./components/BookingSheet.tsx";
 import { NamesContext } from "./components/NamesContext.tsx";
 import { loadNameMap, makeLabeler, namesEnabled, namesForcedOff, NO_NAMES, saveNamesPref, savedNamesPref, type NameMap } from "./lib/names.ts";
 import { clientIdConfigured, getToken, signIn, signOut } from "./lib/auth.ts";
-import { demoActive, demoOutbox, demoTabs } from "./lib/demo.ts";
+import { demoActive, demoOutbox, demoTabsFor } from "./lib/demo.ts";
 import { buildModel } from "./lib/model.ts";
 import { parseOutbox, sendRow, type OutboxItem, type SendAction } from "./lib/outbox.ts";
 import { NO_FILTER, type Decision, type Tx, type TxFilter } from "./lib/parse.ts";
+import { approvalRow, type ApprovalAction, type PayrollRun } from "./lib/payroll.ts";
 import { AuthExpiredError, createReader, decisionRow, type Tabs } from "./lib/sheets.ts";
 import { getWho, setWho, type Who } from "./lib/who.ts";
 import { ClientsScreen } from "./screens/ClientsScreen.tsx";
 import { DeadlinesScreen } from "./screens/DeadlinesScreen.tsx";
 import { InvoicesScreen, type Requested } from "./screens/InvoicesScreen.tsx";
+import { KitScreen } from "./screens/KitScreen.tsx";
+import { PayrollScreen } from "./screens/PayrollScreen.tsx";
 import { ReportsScreen } from "./screens/ReportsScreen.tsx";
 import { TodayScreen } from "./screens/TodayScreen.tsx";
 import { TransactionsScreen } from "./screens/TransactionsScreen.tsx";
@@ -19,7 +22,8 @@ import { TransactionsScreen } from "./screens/TransactionsScreen.tsx";
 const reader = createReader(getToken);
 const todayIso = () => new Date().toISOString().slice(0, 10);
 
-type Screen = "today" | "tx" | "clients" | "reports" | "ar" | "deadlines";
+// "payroll" and "kits" are reached from Deadlines and Today (the nav has no room for them at 390px); Deadlines stays lit.
+type Screen = "today" | "tx" | "clients" | "reports" | "ar" | "deadlines" | "payroll" | "kits";
 // [screen, label, short label for a narrow phone nav]
 const NAV: [Screen, string, string][] = [["today", "Today", "Today"], ["tx", "Transactions", "Txns"], ["clients", "Clients", "Clients"], ["reports", "Reports", "Reports"], ["ar", "Invoices", "Invoices"], ["deadlines", "Deadlines", "Due"]];
 
@@ -27,13 +31,16 @@ export function App() {
   const demo = demoActive(window.location.search); // dev server only: fixtures, no sign-in
   const [who, setWhoState] = useState<Who | null>(demo ? "Wade" : getWho());
   const [signedIn, setSignedIn] = useState(demo);
-  const [tabs, setTabs] = useState<Tabs | null>(demo ? demoTabs : null);
+  const [tabs, setTabs] = useState<Tabs | null>(demo ? demoTabsFor(window.location.search) : null);
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
   const [screen, setScreen] = useState<Screen>("today");
   const [filter, setFilter] = useState<TxFilter>(NO_FILTER);
   const [booking, setBooking] = useState<Tx | null>(null);
   const [sent, setSent] = useState<Decision[]>([]); // this session only, memory
+  const [kitSel, setKitSel] = useState<string | null>(null); // open filing kit (Id|Period)
+  const [approvalSent, setApprovalSent] = useState<{ action: ApprovalAction; fingerprint: string } | null>(null); // this session, memory
+  const [filed, setFiled] = useState<ReadonlySet<string>>(new Set()); // "Id|Period" recorded this session, memory
   // ?names=off (AI/test tooling) forces names off for this page load and hides the toggle.
   const forcedOff = namesForcedOff(window.location.search);
   const [namesPref, setNamesPref] = useState(() => savedNamesPref());
@@ -76,7 +83,7 @@ export function App() {
     try { await signIn(); setSignedIn(true); await load(true); }
     catch (e) { setError(e instanceof Error ? e.message : "Sign-in failed"); }
   };
-  const doSignOut = () => { signOut(); reader.clear(); setNameMap(NO_NAMES); setTabs(null); setSignedIn(false); setSent([]); setOutbox(null); setRequested(new Map()); };
+  const doSignOut = () => { signOut(); reader.clear(); setNameMap(NO_NAMES); setTabs(null); setSignedIn(false); setSent([]); setOutbox(null); setRequested(new Map()); setApprovalSent(null); setFiled(new Set()); };
 
   const model = useMemo(() => (tabs ? buildModel(tabs, todayIso(), sent) : null), [tabs, sent]);
 
@@ -94,6 +101,31 @@ export function App() {
     try { if (!demo) await reader.appendSend(row); }
     catch (e) { if (e instanceof AuthExpiredError) { setSignedIn(false); setTabs(null); } throw e; }
     if (item && action !== "DRAFT") setRequested((r) => new Map(r).set(item.number, action));
+  };
+
+  // Payroll run approve or revoke: one appended row on App Approvals. The app pays and files nothing.
+  const actOnPayroll = async (action: ApprovalAction, run: PayrollRun) => {
+    if (!who) return;
+    const row = approvalRow(action, run, who);
+    try { if (!demo) await reader.appendApproval(row); }
+    catch (e) { if (e instanceof AuthExpiredError) { setSignedIn(false); setTabs(null); } throw e; }
+    setApprovalSent({ action, fingerprint: run.fingerprint });
+  };
+
+  // A filing recorded as done: one appended row per deadline item on App Filings, in order. Stops at the first failure.
+  const recordFilings = async (rows: string[][], keys: string[]) => {
+    const done: string[] = [];
+    try {
+      for (let i = 0; i < rows.length; i++) {
+        if (!demo) await reader.appendFiling(rows[i]);
+        done.push(keys[i]);
+      }
+    } catch (e) {
+      if (e instanceof AuthExpiredError) { setSignedIn(false); setTabs(null); }
+      throw e;
+    } finally {
+      if (done.length) setFiled((f) => new Set([...f, ...done]));
+    }
   };
 
   if (!who) {
@@ -141,10 +173,18 @@ export function App() {
       </header>
       {error && <p className="warn pad">{error}</p>}
       <main className="content">
-        {screen === "today" && <TodayScreen m={model} openTx={setBooking} goUnpaid={() => go("ar")} goTransactions={goTx} goReports={() => go("reports")} goDeadlines={() => go("deadlines")} />}
+        {screen === "today" && <TodayScreen m={model} openTx={setBooking} goUnpaid={() => go("ar")} goTransactions={goTx} goReports={() => go("reports")} goDeadlines={() => go("deadlines")} goPayroll={() => go("payroll")} />}
         {screen === "tx" && <TransactionsScreen m={model} filter={filter} setFilter={setFilter} openTx={setBooking} />}
         {screen === "clients" && <ClientsScreen m={model} />}
-        {screen === "deadlines" && <DeadlinesScreen rows={model.deadlines} />}
+        {screen === "deadlines" && (
+          <DeadlinesScreen rows={model.deadlines} kits={model.kits} payroll={model.payroll}
+            openKit={(k) => { setKitSel(k); go("kits"); }} openKits={() => { setKitSel(null); go("kits"); }} openPayroll={() => go("payroll")} />
+        )}
+        {screen === "payroll" && <PayrollScreen run={model.payroll} recorded={approvalSent} onAct={actOnPayroll} />}
+        {screen === "kits" && (
+          <KitScreen kits={model.kits} deadlines={model.deadlines} today={model.today} selected={kitSel} onSelect={(k) => { setKitSel(k); window.scrollTo(0, 0); }}
+            filed={filed} onFile={recordFilings} who={who} />
+        )}
         {screen === "reports" && <ReportsScreen m={model} filterByCode={filterByCode} />}
         {screen === "ar" && (
           <InvoicesScreen items={model.invoices} today={model.today} outbox={outbox} requested={requested}
@@ -153,7 +193,7 @@ export function App() {
       </main>
       <nav>
         {NAV.map(([s, label, short]) => (
-          <button key={s} className={screen === s ? "on" : ""} aria-label={label} onClick={() => (s === "tx" ? goTx(false) : go(s))}>
+          <button key={s} className={screen === s || (s === "deadlines" && (screen === "payroll" || screen === "kits")) ? "on" : ""} aria-label={label} onClick={() => (s === "tx" ? goTx(false) : go(s))}>
             <span className="full">{label}</span><span className="short">{short}</span>
           </button>
         ))}

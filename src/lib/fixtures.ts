@@ -140,3 +140,108 @@ export const deadlinesFixture: Grid = [
   ["X10", "Sales tax permit review", "NCPT", "license", "", "", "", "", "", "undated", "", "", "state", "Confirm whether the permit applies", "", ""],
   ["X11", "Form 944 annual payroll return", "NCPT", "payroll", "2026", "2027-01-31", "2027-01-31", "", 95, "exempt", "", "", "federal", "", "", "Files 941 quarterly instead"],
 ];
+
+// Extra deadline rows for the kit and payroll screens: real item ids (F1 = 941, C1 = DE 9, C2 = DE 9C ...) so a kit can find its row.
+// Kept apart from deadlinesFixture, whose size the deadline tests pin. Demo mode shows both.
+export const kitDeadlinesFixture: Grid = [
+  ["Id", "Title", "Domain", "Kind", "Period", "Due", "Raw due", "Rolled", "Days left", "State", "Blocker", "Method", "Level", "Verify", "Bench", "Note"],
+  ["F1", "Form 941 Q4", "NCPT", "payroll", "2026Q4", "2027-02-01", "2027-01-31", "yes", 96, "open", "", "TaxBandits", "federal", "", "ncpt-941", ""],
+  ["F2", "Federal tax deposit Q4", "NCPT", "payroll", "2026Q4", "2027-01-15", "2027-01-15", "", 80, "open", "", "EFTPS", "federal", "", "", ""],
+  ["F3", "Form 940 (FUTA)", "NCPT", "payroll", "2026", "2027-02-01", "2027-01-31", "yes", 96, "open", "", "TaxBandits", "federal", "", "", ""],
+  ["F4", "W-2 / W-3 (Julie)", "NCPT", "payroll", "2026", "2027-02-01", "2027-01-31", "yes", 96, "open", "", "SSA Business Services", "federal", "", "", ""],
+  ["C1", "DE 9 Q4", "NCPT", "payroll", "2026Q4", "2027-02-01", "2027-01-31", "yes", 96, "open", "", "EDD e-Services", "state", "", "", ""],
+  ["C2", "DE 9C Q4", "NCPT", "payroll", "2026Q4", "2027-02-01", "2027-01-31", "yes", 96, "open", "", "EDD e-Services", "state", "", "", ""],
+  ["C3", "EDD deposit Q4", "NCPT", "payroll", "2026Q4", "2027-02-01", "2027-02-01", "", 96, "open", "", "EDD e-Services", "state", "", "", ""],
+  ["I1", "Quarterly payroll run", "NCPT", "payroll", "2026Q4", "2026-12-22", "2026-12-22", "", 54, "open", "", "Payroll tracker", "internal", "", "", ""],
+];
+
+// App Payroll for Q4 2026, made-up numbers (gross 12,500; fed PIT 586.50; CA PIT 327.91; EDD 490.41; EFTPS 2,499).
+const payrollHead = ["Section", "Key", "Label", "Amount", "Due", "Status", "Detail"];
+const payrollAmounts: [string, string, number][] = [
+  ["gross", "Gross wages", 12500], ["deferral", "Roth 401k deferral", 0], ["cash", "Cash paycheck (net pay less deferral)", 10466.84],
+  ["correction", "Correction added to the cash paycheck", 199.5], ["match", "401k employer match", 3125],
+  ["fed_pit", "Federal income tax withheld", 586.5], ["ca_pit", "CA PIT withheld", 327.91], ["sdi", "CA SDI withheld", 162.5],
+  ["ee_ss", "Social Security, employee", 775], ["ee_medicare", "Medicare, employee", 181.25],
+  ["er_ss", "Social Security, employer", 775], ["er_medicare", "Medicare, employer", 181.25],
+  ["ui_ett", "CA UI + ETT, employer", 0], ["eftps", "EFTPS deposit", 2499], ["edd", "EDD deposit", 490.41],
+];
+const payrollChecks: [string, string, string, string][] = [
+  ["GROSS_SET", "Gross wages set in the tracker", "ok", "gross 12,500.00"],
+  ["FED_PIT_EMPTY", "Federal PIT row filled", "ok", "federal PIT 586.50; policy 586.50 (EFTPS target 2,499.00)"],
+  ["FED_PIT_IN_DEDUCTIONS", "Federal PIT in net pay and the EFTPS deposit", "ok", "net pay and EFTPS include federal PIT"],
+  ["EDD_TOTAL", "EDD deposit = SDI + CA PIT + UI/ETT", "ok", "EDD 490.41 vs SDI 162.50 + CA PIT 327.91 + UI/ETT 0.00 = 490.41"],
+  ["DEFERRAL_LIMIT", "401k deferral and 415(c) limits", "ok", "deferral YTD 24,500.00 of 24,500.00"],
+  ["WAGE_BASE", "Wage bases (Social Security, Medicare, CA UI)", "ok", "wages YTD 52,500.00; UI taxable this quarter 0.00"],
+  ["PRIOR_LEGS_TIE", "Earlier quarters tie to the bank", "ok", "2026Q1 -15.50 accepted; 2026Q2 215.00 accepted; 2026Q3 tied"],
+  ["CA_PIT_OPTION_A", "CA PIT per DE 4 (option A)", "ok", "CA PIT 327.91 vs EDD Method B 327.91 (single, 0 allowances)"],
+  ["EFTPS_UNDER_2500", "EFTPS under $2,500 (pay with the 941)", "ok", "EFTPS 2,499.00"],
+  ["DE4_SIGNED", "Signed DE 4 on file", "warn", "can't check offline: confirm the signed DE 4 is on file"],
+  ["EDD_EFILE", "EDD e-file figures clean", "ok", "no flags"],
+];
+const payrollLegs: [string, string, number, string, string, string][] = [
+  ["ascensus", "Ascensus 401k deferral + match", 3125, "2026-12-31", "matched", '{"portal":"https://www.ascensus.com/","cleared_on":"2026-12-31","cleared_amount":3125,"diff":0}'],
+  ["cash_paycheck", "Cash paycheck transfer", 10666.34, "2026-12-22", "pending", '{"portal":"https://bank.example.com/","cleared_on":"","cleared_amount":null,"diff":null}'],
+  ["eftps", "EFTPS / Form 941 deposit", 2499, "2027-01-15", "pending", '{"portal":"https://www.eftps.gov/","cleared_on":"","cleared_amount":null,"diff":null}'],
+  ["edd", "CA EDD deposit", 490.41, "2027-02-01", "mismatch", '{"portal":"https://eddservices.edd.ca.gov/tap/secure/eservices","cleared_on":"2027-01-08","cleared_amount":490.14,"diff":-0.27}'],
+];
+const payrollFiling: [string, string, number | string, string, string][] = [
+  ["941.1", "Number of employees", 1, "", "2027-02-01"], ["941.2", "Wages, tips and other compensation", 12500, "", "2027-02-01"],
+  ["941.3", "Federal income tax withheld", 586.5, "", "2027-02-01"], ["941.5a.2", "Social security tax (x 0.124)", 1550, "", "2027-02-01"],
+  ["941.16", "Deposit schedule", "", "line 12 under $2,500: pay with the return", "2027-02-01"],
+  ["de9.subject_wages", "DE 9 total subject wages", 12500, "", "2027-02-01"], ["de9.pit_withheld", "DE 9 CA PIT withheld", 327.91, "", "2027-02-01"],
+  ["de9c.wage_plan_code", "DE 9C wage plan code", "", "S", "2027-02-01"], ["de9c.employee_counts", "DE 9C employees, months 1-3", "", "1,1,1", "2027-02-01"],
+];
+const amountsJson = JSON.stringify(Object.fromEntries([...payrollAmounts].sort((a, b) => a[0].localeCompare(b[0])).map(([k, , v]) => [k, v] as [string, number])));
+const payrollMeta = (state: string, detail: string, can: string, canWhy: string) => [
+  ["meta", "ref", "Quarter", "", "", "", "2026Q4"], ["meta", "fingerprint", "Fingerprint", "", "", "", "a1b2c3d4e5f60718293a4b5c"],
+  ["meta", "amounts_json", "Amounts (JSON)", "", "", "", amountsJson],
+  ["meta", "approval", "Approval", "", "", state, detail], ["meta", "can_approve", "Can approve", "", "", can, canWhy],
+  ["meta", "run_by", "Run by", "", "2026-12-22", "", ""], ["meta", "deferral_room", "Deferral room before this run", 0, "", "", ""],
+  ["meta", "cum_gross_before", "Gross wages earlier this year", 40000, "", "", ""], ["meta", "tracker", "Payroll tracker", "", "", "ok", ""],
+  ["meta", "built", "Built", "", "", "", "2026-10-29T06:28"],
+];
+export const payrollFixture: Grid = [
+  payrollHead,
+  ...payrollAmounts.map(([k, l, v]) => ["run", k, l, v, "", "", ""]),
+  ...payrollChecks.map(([k, l, s, d]) => ["check", k, l, "", "", s, d]),
+  ...payrollLegs.map(([k, l, a, due, s, d]) => ["leg", k, l, a, due, s, d]),
+  ...payrollFiling.map(([k, l, a, d, due]) => ["filing", k, l, a, due, "", d]),
+  ...payrollMeta("none", "", "yes", ""),
+];
+// The same run with the federal PIT row left empty: a check blocks and Approve stays disabled.
+export const payrollBlockedFixture: Grid = [
+  payrollHead,
+  ...payrollAmounts.map(([k, l, v]) => ["run", k, l, k === "fed_pit" ? 0 : v, "", "", ""]),
+  ...payrollChecks.map(([k, l, s, d]) => (k === "FED_PIT_EMPTY" ? ["check", k, l, "", "", "block", "federal PIT 0.00; policy 586.50 (EFTPS target 2,499.00)"] : ["check", k, l, "", "", s, d])),
+  ...payrollLegs.map(([k, l, a, due, s, d]) => ["leg", k, l, a, due, s, d]),
+  ...payrollMeta("none", "", "no", "blocked by FED_PIT_EMPTY"),
+];
+
+// App Kits (made-up values). Period matches the kitDeadlinesFixture rows.
+export const kitsFixture: Grid = [
+  ["Kit", "Period", "Order", "Line", "Label", "Value", "Source", "Tie", "Status"],
+  ["F1", "2026Q4", 0, "kit", "Form 941", "https://www.taxbandits.com/", "fp0f1", "", "check"],
+  ["F1", "2026Q4", 1, "1", "Employees paid for the pay period including the 12th of month 3", 1, "one employee", "", ""],
+  ["F1", "2026Q4", 2, "2", "Wages, tips and other compensation", 12500, "tracker Gross Payroll (row 4)", "", ""],
+  ["F1", "2026Q4", 3, "3", "Federal income tax withheld", 586.5, "tracker Federal PIT (row 14)", "", ""],
+  ["F1", "2026Q4", 4, "4", "No wages subject to social security or Medicare tax", "unchecked", "", "", ""],
+  ["F1", "2026Q4", 5, "5a col 2", "Social security tax (x 0.124)", 1550, "computed", "", ""],
+  ["F1", "2026Q4", 6, "13", "Total deposits for this quarter", 2499, "tracker Federal Taxes (EFTPS)", "", ""],
+  ["F1", "2026Q4", 901, "tie", "line 5a col 2 = employee + employer SS", "1550 / 1550", "", "941_5A_EE_ER_SS", "ok"],
+  ["F1", "2026Q4", 902, "tie", "line 13 deposits = line 12 liability", "2499 / 2500", "a difference shows as a balance due or overpayment", "941_13_VS_12", "FAIL"],
+  ["F3", "2026", 0, "kit", "Form 940", "https://www.taxbandits.com/", "fp0f3", "", "verify"],
+  ["F3", "2026", 1, "1a", "State where you paid wages", "CA", "profile", "", ""],
+  ["F3", "2026", 2, "3", "Total payments to all employees", 52500, "ledger", "", ""],
+  ["F3", "2026", 951, "verify", "California credit reduction rate for 2026 is a forecast: confirm in November", "", "", "", "verify"],
+  ["F4", "2026", 0, "kit", "W-2 / W-3", "https://www.ssa.gov/bso/bsowelcome.htm", "fp0f4", "", "blocked"],
+  ["F4", "2026", 981, "blocked", "Q4 payroll has not been run", "", "", "", "blocked"],
+  ["C1", "2026Q4", 0, "kit", "DE 9 / DE 9C", "https://eddservices.edd.ca.gov/tap/secure/eservices", "fp0c1", "", "ready"],
+  ["C1", "2026Q4", 1, "DE 9 B", "Employees in pay period incl. the 12th (months 1/2/3)", "1 / 1 / 1", "closeout_quarter.edd_json", "", ""],
+  ["C1", "2026Q4", 2, "DE 9 C", "Total subject wages", 12500, "closeout_quarter.edd_json", "", ""],
+  ["C1", "2026Q4", 3, "DE 9 G", "California PIT withheld", 327.91, "closeout_quarter.edd_json", "", ""],
+  ["C1", "2026Q4", 4, "DE 9C I", "Wage plan code", "S", "closeout_quarter.edd_json", "", ""],
+  ["TIES", "2026", 0, "kit", "Year-end tie-out", "", "fpties", "", "check"],
+  ["TIES", "2026", 901, "tie", "941 line 2 summed = W-2 box 1", "52500 / 52500", "", "941_L2_W2_BOX1", "ok"],
+  ["TIES", "2026", 902, "tie", "DE 9 PIT = W-2 box 17", "327.91 / 0", "box 17 not filled yet", "DE9_PIT_BOX17", "FAIL"],
+  ["TIES", "2026", 903, "tie", "941 vs taxpack", "n/a / 52500", "taxpack not read", "941_TAXPACK", "n/a"],
+];

@@ -1,12 +1,16 @@
-// Sheets REST reader plus the app's single write path (append to `App Decisions`).
+// Sheets REST reader plus the app's write paths (appended rows on input tabs only).
 // Per-session in-memory cache only: nothing is written to localStorage or IndexedDB.
 // `Customer Codes` is read separately, only when names are on, into memory only.
 // The raw `Invoices`, `Journal`, `Customers`, `Payers` and `Review` tabs are never read.
 // `App Outbox` (invoice emails, with recipients) is read like Customer Codes: names on only, memory only.
-// Writes are appended rows to two input tabs: `App Decisions` (bookings) and `App Send` (invoice approvals).
+// Writes are appended rows to four input tabs: `App Decisions` (bookings), `App Send` (invoice approvals),
+// `App Approvals` (payroll run approve or revoke) and `App Filings` (a filing recorded as done). The app
+// pays, files and submits nothing; Python reads these rows at the next publish.
 import type { Grid } from "./parse.ts";
+import { FILINGS_TAB } from "./filings.ts";
 import { CODES_TAB } from "./names.ts";
 import { OUTBOX_TAB, SEND_TAB } from "./outbox.ts";
+import { APPROVALS_TAB } from "./payroll.ts";
 import type { Who } from "./who.ts";
 
 // Set at build time (repo variable VITE_SHEET_ID, or .env.local); deliberately not in the source.
@@ -15,7 +19,7 @@ export const SHEET_ID: string = (import.meta.env.VITE_SHEET_ID as string | undef
 export const TABS = [
   "App Summary", "App Transactions", "App Monthly", "App Invoices", "App Decisions",
   "P&L", "Balance Sheet", "Accounts",
-  "App Clients", "App Deadlines", "P&L 2025", "P&L 2024", "Balance Sheet 2025", "Balance Sheet 2024", // history years, from Wave's books
+  "App Clients", "App Deadlines", "App Payroll", "App Kits", "P&L 2025", "P&L 2024", "Balance Sheet 2025", "Balance Sheet 2024", // history years, from Wave's books
 ] as const;
 export type Tab = (typeof TABS)[number];
 export type Tabs = Record<Tab, Grid>;
@@ -45,6 +49,16 @@ export function appendUrl(sheetId: string): string {
 
 export function sendUrl(sheetId: string): string {
   return `${BASE(sheetId)}/values/${encodeURIComponent(SEND_TAB + "!A:E")}:append?valueInputOption=RAW&insertDataOption=INSERT_ROWS`;
+}
+
+// [Kind, Ref, Fingerprint, Amounts (JSON), Action, Who, When]
+export function approvalsUrl(sheetId: string): string {
+  return `${BASE(sheetId)}/values/${encodeURIComponent(APPROVALS_TAB + "!A:G")}:append?valueInputOption=RAW&insertDataOption=INSERT_ROWS`;
+}
+
+// [Id, Period, Confirmation, Amount, Filed on, Method, Who, When, Note]
+export function filingsUrl(sheetId: string): string {
+  return `${BASE(sheetId)}/values/${encodeURIComponent(FILINGS_TAB + "!A:I")}:append?valueInputOption=RAW&insertDataOption=INSERT_ROWS`;
 }
 
 // [Entry, Account, Note, Who, When]
@@ -98,9 +112,12 @@ export function createReader(
       if (res.status === 401) throw new AuthExpiredError("Sign-in expired");
       return res.ok ? (((await res.json()) as { values?: Grid }).values ?? []) : [];
     },
-    // Writes: one appended row on App Decisions (a booking) or on App Send (an invoice approval).
+    // Writes: one appended row on App Decisions (a booking), App Send (an invoice approval), App Approvals
+    // (a payroll run approve/revoke) or App Filings (a filing recorded as done).
     async appendDecision(row: string[]): Promise<void> { return append(appendUrl(sheetId), row); },
     async appendSend(row: string[]): Promise<void> { return append(sendUrl(sheetId), row); },
+    async appendApproval(row: string[]): Promise<void> { return append(approvalsUrl(sheetId), row); },
+    async appendFiling(row: string[]): Promise<void> { return append(filingsUrl(sheetId), row); },
     clear(): void { cache = null; },
   };
   async function append(url: string, row: string[]): Promise<void> {

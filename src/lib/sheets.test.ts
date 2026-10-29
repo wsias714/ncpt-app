@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import { AuthExpiredError, TABS, appendUrl, batchUrl, createReader, decisionRow, sendUrl } from "./sheets.ts";
+import { AuthExpiredError, TABS, appendUrl, approvalsUrl, batchUrl, createReader, decisionRow, filingsUrl, sendUrl } from "./sheets.ts";
 
 const ok = (values: unknown[][][]) => ({
   ok: true, status: 200,
@@ -62,6 +62,41 @@ describe("appendDecision", () => {
   it("throws on failure", async () => {
     const f = vi.fn(async () => ({ ok: false, status: 403, json: async () => ({}) }));
     await expect(createReader(() => "t", f, "S").appendDecision(["a"])).rejects.toThrow("403");
+  });
+});
+
+describe("payroll approvals and filings", () => {
+  it("reads App Payroll and App Kits in the batch, and never the input tabs", () => {
+    expect(TABS as readonly string[]).toEqual(expect.arrayContaining(["App Payroll", "App Kits"]));
+    expect(TABS as readonly string[]).not.toContain("App Approvals");
+    expect(TABS as readonly string[]).not.toContain("App Filings");
+  });
+  it("appends one approval row to App Approvals only", async () => {
+    const f = vi.fn(async () => ({ ok: true, status: 200, json: async () => ({}) }));
+    const row = ["PAYROLL_RUN", "2026Q4", "fp", "{}", "APPROVE", "Julie", "2026-12-20T09:00:00.000Z"];
+    await createReader(() => "tok", f, "SHEET").appendApproval(row);
+    const [url, init] = f.mock.calls[0] as unknown as [string, { method: string; body: string }];
+    expect(url).toBe(approvalsUrl("SHEET"));
+    expect(decodeURIComponent(url)).toContain("App Approvals!A:G:append");
+    expect(url).toContain("valueInputOption=RAW");
+    expect(init.method).toBe("POST");
+    expect(JSON.parse(init.body)).toEqual({ values: [row] });
+  });
+  it("appends one filing row to App Filings only", async () => {
+    const f = vi.fn(async () => ({ ok: true, status: 200, json: async () => ({}) }));
+    const row = ["F1", "2026Q4", "ABC123", "2499.00", "2027-01-28", "TaxBandits", "Julie", "2027-01-28T17:00:00.000Z", ""];
+    await createReader(() => "tok", f, "SHEET").appendFiling(row);
+    const [url, init] = f.mock.calls[0] as unknown as [string, { method: string; body: string }];
+    expect(url).toBe(filingsUrl("SHEET"));
+    expect(decodeURIComponent(url)).toContain("App Filings!A:I:append");
+    expect(JSON.parse(init.body)).toEqual({ values: [row] });
+  });
+  it("surfaces a failed or expired save", async () => {
+    const bad = vi.fn(async () => ({ ok: false, status: 403, json: async () => ({}) }));
+    await expect(createReader(() => "t", bad, "S").appendApproval(["x"])).rejects.toThrow("Could not save (403)");
+    await expect(createReader(() => "t", bad, "S").appendFiling(["x"])).rejects.toThrow("Could not save (403)");
+    const exp = vi.fn(async () => ({ ok: false, status: 401, json: async () => ({}) }));
+    await expect(createReader(() => "t", exp, "S").appendFiling(["x"])).rejects.toBeInstanceOf(AuthExpiredError);
   });
 });
 
