@@ -18,7 +18,7 @@ export interface RunAmount { key: string; label: string; amount: number | null }
 export interface Check { id: string; label: string; status: CheckStatus; detail: string }
 export interface Leg {
   key: string; label: string; expected: number | null; clearBy: string; status: LegStatus;
-  portal: string; clearedOn: string; clearedAmount: number | null; diff: number | null;
+  portal: string; clearedOn: string; clearedAmount: number | null; diff: number | null; personalOn: string;
 }
 export interface FilingLine { key: string; label: string; amount: number | null; due: string; detail: string }
 export interface PayrollRun {
@@ -35,11 +35,11 @@ const CHECK_STATUS: readonly CheckStatus[] = ["ok", "warn", "block"];
 const LEG_STATUS: readonly LegStatus[] = ["matched", "pending", "mismatch", "n/a"];
 const APPROVAL: readonly ApprovalState[] = ["approved", "stale", "none", "revoked"];
 
-function legDetail(s: string): { portal: string; clearedOn: string; clearedAmount: number | null; diff: number | null } {
+function legDetail(s: string): { portal: string; clearedOn: string; clearedAmount: number | null; diff: number | null; personalOn: string } {
   try {
     const d = JSON.parse(s) as Record<string, unknown>;
-    return { portal: text(d.portal), clearedOn: text(d.cleared_on), clearedAmount: toNumber(d.cleared_amount), diff: toNumber(d.diff) };
-  } catch { return { portal: "", clearedOn: "", clearedAmount: null, diff: null }; }
+    return { portal: text(d.portal), clearedOn: text(d.cleared_on), clearedAmount: toNumber(d.cleared_amount), diff: toNumber(d.diff), personalOn: text(d.personal_on) };
+  } catch { return { portal: "", clearedOn: "", clearedAmount: null, diff: null, personalOn: "" }; }
 }
 
 /** null when the tab is missing or has no rows (not published yet). */

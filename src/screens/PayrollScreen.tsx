@@ -66,6 +66,7 @@ function Legs({ legs }: { legs: Leg[] }) {
               <div className="dtitle">{l.label}</div>
               <div className="sub">{l.clearBy ? `clear by ${dayLabel(l.clearBy)}` : "no date"}{l.portal && <> - <a href={l.portal} target="_blank" rel="noreferrer">portal</a></>}</div>
               {l.status === "matched" && l.clearedOn && <div className="sub">cleared {dayLabel(l.clearedOn)}{l.clearedAmount !== null ? ` for ${money(l.clearedAmount)}` : ""}</div>}
+              {l.status === "matched" && l.personalOn && <div className="sub">also arrived in the personal account {dayLabel(l.personalOn)}</div>}
               {l.status === "mismatch" && <div className="sub warn">bank shows {l.clearedAmount !== null ? money(l.clearedAmount) : "a different amount"}{l.diff !== null ? ` (${l.diff > 0 ? "+" : ""}${money(l.diff)} off)` : ""}{l.clearedOn ? ` on ${dayLabel(l.clearedOn)}` : ""}</div>}
             </div>
             <span className={"dchip " + LEG_CLASS[l.status]}>{l.status}</span>
