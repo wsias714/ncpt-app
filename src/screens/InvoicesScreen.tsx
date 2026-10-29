@@ -102,7 +102,7 @@ export function InvoicesScreen({ items, today, outbox, requested, onSend, onCanc
           )}
         </>
       )}
-      <ArScreen items={items} today={today} hideDrafts={outbox !== null} />
+      <ArScreen items={items} today={today} previewed={outbox === null ? undefined : new Set(ready.map((i) => i.number))} />
     </section>
   );
 }

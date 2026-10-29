@@ -26,8 +26,11 @@ function Group({ title, items }: { title: string; items: ArItem[] }) {
   );
 }
 
-export function ArScreen({ items, today, hideDrafts = false }: { items: ArItem[]; today: string; hideDrafts?: boolean }) {
+// `previewed`: invoice numbers already shown with an email preview above (Invoices screen); other drafts stay listed here.
+export function ArScreen({ items, today, previewed }: { items: ArItem[]; today: string; previewed?: ReadonlySet<string> }) {
+  const hideDrafts = previewed !== undefined;
   const st = invoiceStats(items, today);
+  const drafts = st.drafts.filter((i) => !previewed?.has(i.number));
   const overdueNums = new Set(st.overdue.map((i) => i.number));
   return (
     <section>
@@ -35,7 +38,8 @@ export function ArScreen({ items, today, hideDrafts = false }: { items: ArItem[]
       {items.length === 0 && <p className="muted">No invoices published yet.</p>}
       <Group title="Overdue" items={st.overdue} />
       <Group title="Outstanding" items={st.outstanding.filter((i) => !overdueNums.has(i.number))} />
-      {!hideDrafts && <Group title="Ready to send (drafts)" items={st.drafts} />}
+      {drafts.length > 0 && hideDrafts && <p className="sub">These drafts have no email preview yet. Previews, and the Approve button, appear once the invoice script is running.</p>}
+      <Group title={hideDrafts ? "Drafts (no preview yet)" : "Ready to send (drafts)"} items={drafts} />
       <Group title="Paid, last 30 days" items={st.paid30} />
     </section>
   );
