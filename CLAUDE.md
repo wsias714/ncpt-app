@@ -6,7 +6,7 @@ Notes for Claude Code sessions in this repo.
 NCPT Books app: a phone-first PWA (React + Vite + TypeScript) that fronts the NCPT Books Google Sheet for Wade and Julie. Plan and decisions (authoritative): `~/Projects/CFO/ncpt_books/docs/MOBILE-APP-PLAN.md`. Built: Today, Transactions (booking sheet), Reports, Unpaid. The app reads only the `App *` tabs plus `P&L`, `Balance Sheet`, `Accounts` and writes only appended rows to `App Decisions` and `App Send` (invoice approvals). It also reads `App Outbox` (recipients and email text) at runtime when names are on, like Customer Codes (never read `Invoices`, `Journal`, `Customers`, `Payers`, `Review`); phases 2-5 are in README ROADMAP.
 
 ## Deploy rule
-GitHub Pages from `main` via `.github/workflows/deploy.yml`. NOT enabled: there is no remote. Do not create a GitHub repo, add a remote or push until Wade okays it (private repo, SSH remote `git@github.com:wsias714/ncpt-app.git`). Work on a branch, run `npm run check`, merge to `main` to deploy. At that point also register the app (bench `config/projects.json`, `bench/projects/`, `obligations/reference/apps.md`).
+GitHub Pages from `main` via `.github/workflows/deploy.yml`, live at https://wsias714.github.io/ncpt-app/ (remote `git@github.com:wsias714/ncpt-app.git`). Push to `main` only after `npm run check` exits 0 (gate on the exit code, never on piped output). Features that can send or file stay inert until their server-side switch is on (e.g. invoice sending needs Send.gs deployed and `send_enabled = yes`).
 
 ## Data
 - Source of truth is the NCPT Books Sheet (id in `.env.example`), read with the signed-in user's own Google token. No Dropbox sync here: patient data must stay in Julie's Google Workspace (CMIA).
