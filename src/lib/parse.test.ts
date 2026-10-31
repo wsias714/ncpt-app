@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   beforeOwnerPay, compareYears, monthlyYears, ownerPayInMonths, periodMonths, totals, trendMonths, NO_FILTER, UNLABELED, accountPickerOrder, customerCode, daysBetween, filterTransactions, invoiceStats, isPending,
-  latestDecisions, money, needsBooking, parseAccounts, parseAppInvoices, parseBalanceSheet, parseDecisions,
+  hasTransactionsForCode, latestDecisions, money, needsBooking, parseAccounts, parseAppInvoices, parseBalanceSheet, parseDecisions,
   parseMonthly, parsePnl, parseSummary, parseTransactions, recentTransactions, toIsoDate, toNumber, totalOpen,
   txCategories, txMonths, wagesTotal,
 } from "./parse.ts";
@@ -112,6 +112,13 @@ describe("transactions and decisions", () => {
     expect(f({ month: "2030-02" })).toEqual(["bank:t2"]);
     expect(f({ reviewOnly: true })).toEqual(["bank:t3"]);
     expect(f({ code: "4000" })).toEqual(["bank:t4"]);
+  });
+  it("only offers transaction filtering for account codes present in App Transactions", () => {
+    expect(hasTransactionsForCode(txs, "4000")).toBe(true);
+    // Accrual revenue can exist in the statement without a corresponding bank/card line.
+    expect(hasTransactionsForCode(txs, "4300")).toBe(false);
+    expect(hasTransactionsForCode(txs, "")).toBe(false);
+    expect(filterTransactions(txs, { ...NO_FILTER, code: "4300" }, latest)).toEqual([]);
   });
   it("lists months, categories and the last 7 days", () => {
     expect(txMonths(txs)).toEqual(["2030-03", "2030-02", "2030-01"]);

@@ -193,6 +193,10 @@ export function filterTransactions(txs: Tx[], f: TxFilter, latest: Map<string, D
   });
 }
 
+export function hasTransactionsForCode(txs: Tx[], code: string): boolean {
+  return !!code && txs.some((t) => t.code === code);
+}
+
 export function txMonths(txs: Tx[]): string[] {
   return [...new Set(txs.map((t) => t.date.slice(0, 7)).filter((m) => /^\d{4}-\d{2}$/.test(m)))].sort().reverse();
 }

@@ -4,11 +4,11 @@ import { PeriodToggle } from "../components/PeriodToggle.tsx";
 import { HISTORY_YEARS, type Model } from "../lib/model.ts";
 import {
   beforeOwnerPay, compareYears, money, monthlyYears, ownerPayInMonths, PERIOD_LABEL, TREND_RANGES, trendMonths,
-  type Period, type TrendRange,
+  hasTransactionsForCode, type Period, type TrendRange,
 } from "../lib/parse.ts";
 
 type Seg = "is" | "bs" | "trends" | "yoy";
-interface Props { m: Model; filterByCode: (code: string) => void }
+interface Props { m: Model; filterByCode: (code: string) => void; openInvoices?: () => void }
 
 const currentYear = (m: Model) => m.summary.asOf.slice(0, 4) || m.today.slice(0, 4);
 // The current year first, then the past years that were published.
@@ -23,7 +23,7 @@ function YearSelect({ years, value, onChange }: { years: string[]; value: string
   );
 }
 
-function Statement({ m, filterByCode }: Props) {
+function Statement({ m, filterByCode, openInvoices }: Props) {
   const cur = currentYear(m);
   const [year, setYear] = useState(cur);
   const [basis, setBasis] = useState<"cash" | "accrual">("cash");
@@ -67,9 +67,18 @@ function Statement({ m, filterByCode }: Props) {
           <ul className="list">
             {s.rows.filter((r) => at(r.values) !== 0).map((r) => (
               <li key={r.code}>
-                <button className="txrow" onClick={() => filterByCode(r.code)}>
-                  <span className="grow">{r.name}</span><span>{money(at(r.values))}</span>
-                </button>
+                {hasTransactionsForCode(m.txs, r.code) ? (
+                  <button className="txrow" onClick={() => filterByCode(r.code)}>
+                    <span className="grow">{r.name}</span><span>{money(at(r.values))}</span>
+                  </button>
+                ) : openInvoices && r.code.startsWith("4") ? (
+                  // Income is posted from invoices, so no bank line carries this code: the invoices are the detail.
+                  <button className="txrow" onClick={openInvoices}>
+                    <span className="grow">{r.name} <span className="muted">(see invoices)</span></span><span>{money(at(r.values))}</span>
+                  </button>
+                ) : (
+                  <div className="row"><span className="grow">{r.name}</span><span>{money(at(r.values))}</span></div>
+                )}
               </li>
             ))}
             <li className="row total"><strong>Total {s.title.toLowerCase()}</strong><strong>{money(at(s.total))}</strong></li>
@@ -185,7 +194,7 @@ function YearOverYear({ m }: { m: Model }) {
   );
 }
 
-export function ReportsScreen({ m, filterByCode }: Props) {
+export function ReportsScreen({ m, filterByCode, openInvoices }: Props) {
   const [seg, setSeg] = useState<Seg>("is");
   const s = m.summary;
   return (
@@ -197,7 +206,7 @@ export function ReportsScreen({ m, filterByCode }: Props) {
         <button className={seg === "trends" ? "on" : ""} onClick={() => setSeg("trends")}>Trends</button>
         <button className={seg === "yoy" ? "on" : ""} onClick={() => setSeg("yoy")}>Year over year</button>
       </div>
-      {seg === "is" && <Statement m={m} filterByCode={filterByCode} />}
+      {seg === "is" && <Statement m={m} filterByCode={filterByCode} openInvoices={openInvoices} />}
       {seg === "bs" && <Balance m={m} />}
       {seg === "trends" && <Trends m={m} />}
       {seg === "yoy" && <YearOverYear m={m} />}

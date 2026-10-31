@@ -193,7 +193,7 @@ export function App() {
           <KitScreen kits={model.kits} deadlines={model.deadlines} today={model.today} selected={kitSel} onSelect={(k) => { setKitSel(k); window.scrollTo(0, 0); }}
             filed={filed} onFile={recordFilings} who={who} />
         )}
-        {screen === "reports" && <ReportsScreen m={model} filterByCode={filterByCode} />}
+        {screen === "reports" && <ReportsScreen m={model} filterByCode={filterByCode} openInvoices={() => go("ar")} />}
         {screen === "ar" && (
           <InvoicesScreen items={model.invoices} today={model.today} outbox={outbox} outboxNote={outboxNote} requested={requested}
             onSend={(i) => requestSend("SEND", i)} onCancel={(i) => requestSend("CANCEL", i)} onDraft={() => requestSend("DRAFT")} />
