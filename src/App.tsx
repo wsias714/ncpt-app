@@ -58,10 +58,18 @@ export function App() {
   // Invoice emails (recipients and text) are read like names: names on only, memory only. Demo uses made-up fixtures.
   const [outbox, setOutbox] = useState<OutboxItem[] | null>(demo ? parseOutbox(demoOutbox) : null);
   const [requested, setRequested] = useState<Requested>(new Map());
+  const [outboxNote, setOutboxNote] = useState("");
   const loadOutbox = useCallback(async () => {
     if (demo) return;
+    setOutboxNote("");
     if (!signedIn || !namesOn) { setOutbox(null); return; }
-    try { setOutbox(parseOutbox(await reader.readOutbox())); } catch { setOutbox(null); }
+    try { setOutbox(parseOutbox(await reader.readOutbox())); }
+    catch (e) {
+      setOutbox(null);
+      setOutboxNote(e instanceof Error && /expired/i.test(e.message)
+        ? "Your sign-in expired, so the email previews could not load. Sign out, sign in again, then Refresh."
+        : "The email previews could not load. Tap Refresh to try again.");
+    }
   }, [demo, signedIn, namesOn]);
   useEffect(() => { void loadOutbox(); }, [loadOutbox]);
   const label = useMemo(() => makeLabeler(namesOn ? nameMap : NO_NAMES), [namesOn, nameMap]);
@@ -187,7 +195,7 @@ export function App() {
         )}
         {screen === "reports" && <ReportsScreen m={model} filterByCode={filterByCode} />}
         {screen === "ar" && (
-          <InvoicesScreen items={model.invoices} today={model.today} outbox={outbox} requested={requested}
+          <InvoicesScreen items={model.invoices} today={model.today} outbox={outbox} outboxNote={outboxNote} requested={requested}
             onSend={(i) => requestSend("SEND", i)} onCancel={(i) => requestSend("CANCEL", i)} onDraft={() => requestSend("DRAFT")} />
         )}
       </main>

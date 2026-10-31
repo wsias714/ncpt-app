@@ -9,6 +9,7 @@ export type Requested = ReadonlyMap<string, "SEND" | "CANCEL">; // this session 
 interface Props {
   items: ArItem[]; today: string;
   outbox: OutboxItem[] | null; // null: not loaded (names off, or not signed in)
+  outboxNote?: string;         // why it did not load, when it failed (shown instead of the names-off hint)
   requested: Requested;
   onSend: (i: OutboxItem) => Promise<void>;
   onCancel: (i: OutboxItem) => Promise<void>;
@@ -61,7 +62,7 @@ function Preview({ i, requested, onSend, onCancel }: { i: OutboxItem; requested?
   );
 }
 
-export function InvoicesScreen({ items, today, outbox, requested, onSend, onCancel, onDraft }: Props) {
+export function InvoicesScreen({ items, today, outbox, outboxNote, requested, onSend, onCancel, onDraft }: Props) {
   const label = useLabel();
   const [drafting, setDrafting] = useState(false);
   const [note, setNote] = useState("");
@@ -76,12 +77,13 @@ export function InvoicesScreen({ items, today, outbox, requested, onSend, onCanc
   return (
     <section>
       <h2>Invoices</h2>
+      {/* Asking for drafts only appends a row to App Send, so it works with names off too. */}
+      <button className="btn" onClick={draft} disabled={drafting}>{drafting ? "Saving..." : "Create invoices from visits"}</button>
+      {note && <p className="sub">{note}</p>}
       {outbox === null ? (
-        <p className="muted">Sending is available only with Names on, because the email preview shows who it goes to.</p>
+        <p className="warn">{outboxNote || "Email previews and Approve and send appear only with Names on, because a preview shows who it goes to. Turn Names on at the top, then Refresh."}</p>
       ) : (
         <>
-          <button className="btn" onClick={draft} disabled={drafting}>{drafting ? "Saving..." : "Create invoices from visits"}</button>
-          {note && <p className="sub">{note}</p>}
           <h3>Ready to send <span className="muted">{ready.length}</span></h3>
           {ready.length === 0 && <p className="muted">Nothing waiting. New visit notes become drafts here.</p>}
           <ul className="list">
