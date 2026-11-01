@@ -66,7 +66,7 @@ export function demoUpcoming(today: string): Grid {
     row("V-demo-3", "Customer C", "at_visit", t(0, "08:00"), t(0, "09:00"), "1", "1", "200.00", "READY", "", "Hand it over at the visit, then Mark issued"),
     row("V-demo-4", "Customer D", "per_visit", t(0, "18:00"), t(0, "19:00"), "1", "1", "200.00", "UPCOMING"),
     row("V-demo-5", "Customer E", "per_visit", t(1, "11:30"), t(1, "13:00"), "1.5", "1", "300.00", "UPCOMING", "", "Customer inactive: turn it on in Customers before billing"),
-    row("V-demo-6", "Customer G", "per_visit", t(2, "10:00"), t(2, "11:00"), "1", "1", "200.00", "WAVE", "", "Before the 11/16 start: bill in Wave"),
+    row("V-demo-6", "Customer G", "per_visit", t(2, "10:00"), t(2, "11:00"), "1", "1", "200.00", "WAVE", "", "Before the start date: bill in Wave"),
     row("V-demo-7", "Customer A", "per_visit", t(3, "09:00"), t(3, "10:00"), "1", "1", "200.00", "SENT", "9110"),
     row("V-demo-8", "Customer D", "at_visit", t(4, "14:00"), t(4, "15:00"), "1", "1", "200.00", "ISSUED", "9111"),
     row("V-demo-9", "Customer H", "per_visit", t(5, "16:00"), t(5, "17:00"), "1", "1", "200.00", "PAID", "9112"),

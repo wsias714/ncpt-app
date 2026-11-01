@@ -9,9 +9,11 @@ export const OUTBOX_TAB = "App Outbox";
 export const SEND_TAB = "App Send";
 
 // SEND / CANCEL: an Outbox preview, by invoice number. DRAFT_VISIT: draft one App Upcoming row (its Key and
-// Fingerprint). MARK_SENT / MARK_ISSUED / VOID: a DRAFT invoice with no Gmail draft, by number. DRAFT (draft
+// Fingerprint). MARK_SENT / MARK_ISSUED / VOID: a DRAFT invoice with no Gmail draft, by number. CLOSE_OUT: a DRAFT
+// invoice that has a Gmail draft Julie will not send (patient pays in person): the script discards the draft and
+// sets the invoice ISSUED, to be closed by the bank deposit match; same row shape as the marks. DRAFT (draft
 // everything due) is the old generic request: still understood by the script, no longer offered by any screen.
-export type SendAction = "SEND" | "CANCEL" | "DRAFT" | "DRAFT_VISIT" | "MARK_SENT" | "MARK_ISSUED" | "VOID";
+export type SendAction = "SEND" | "CANCEL" | "DRAFT" | "DRAFT_VISIT" | "MARK_SENT" | "MARK_ISSUED" | "VOID" | "CLOSE_OUT";
 export type MarkAction = "MARK_SENT" | "MARK_ISSUED" | "VOID";
 
 export interface OutboxItem {
@@ -51,6 +53,14 @@ export function parseOutbox(grid: Grid): OutboxItem[] {
 export function sendRow(action: SendAction, number: string, fingerprint: string, who: Who, now: Date = new Date()): string[] {
   const fp = action === "SEND" || action === "DRAFT_VISIT" ? fingerprint : "";
   return [action === "DRAFT" ? "" : number, fp, action, who, now.toISOString()];
+}
+
+/** What a Ready to send card asked for this session (SEND / CANCEL / CLOSE_OUT), by invoice number. */
+export type OutboxRequest = "SEND" | "CANCEL" | "CLOSE_OUT";
+
+/** Card state for one preview: closed out or approved means Approve and send is off; a cancelled send can be redone. */
+export function cardState(requested: OutboxRequest | undefined): { approveDisabled: boolean; closedOut: boolean; sendRequested: boolean } {
+  return { approveDisabled: requested === "CLOSE_OUT" || requested === "SEND", closedOut: requested === "CLOSE_OUT", sendRequested: requested === "SEND" };
 }
 
 /** Only a READY item with a recipient, a PDF and a fingerprint can be approved. */

@@ -124,6 +124,12 @@ export function App() {
     await appendSend(sendRow(action as SendAction, item.number, item.fingerprint, who));
     setRequested((r) => new Map(r).set(item.number, action));
   };
+  // No email: [Number, "", CLOSE_OUT, Who, When]. The script discards the Gmail draft and sets the invoice ISSUED.
+  const closeOut = async (item: OutboxItem) => {
+    if (!who) return;
+    await appendSend(sendRow("CLOSE_OUT", item.number, "", who));
+    setRequested((r) => new Map(r).set(item.number, "CLOSE_OUT"));
+  };
   // Tap to create: [Key, Fingerprint, DRAFT_VISIT, Who, When]. The button stays disabled for the session.
   const draftVisit = async (r: UpcomingRow) => {
     if (!who) return;
@@ -224,7 +230,7 @@ export function App() {
           <InvoicesScreen items={model.invoices} today={model.today} upcoming={upcoming} upToday={pacificToday()}
             requestedVisits={requestedVisits} onDraftVisit={draftVisit}
             outbox={outbox} outboxNote={outboxNote} requested={requested}
-            onSend={(i) => requestSend("SEND", i)} onCancel={(i) => requestSend("CANCEL", i)}
+            onSend={(i) => requestSend("SEND", i)} onCancel={(i) => requestSend("CANCEL", i)} onCloseOut={closeOut}
             marked={marked} onMark={markInvoice} />
         )}
       </main>

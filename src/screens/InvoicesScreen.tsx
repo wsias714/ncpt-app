@@ -1,12 +1,13 @@
 import { useState } from "react";
 import { useLabel } from "../components/NamesContext.tsx";
 import { UpcomingList } from "../components/UpcomingList.tsx";
-import { canApprove, type MarkAction, type OutboxItem } from "../lib/outbox.ts";
+import { ConfirmSheet } from "../components/ConfirmSheet.tsx";
+import { canApprove, cardState, type MarkAction, type OutboxItem, type OutboxRequest } from "../lib/outbox.ts";
 import { invoiceStats, money, type ArItem } from "../lib/parse.ts";
 import type { UpcomingRow } from "../lib/upcoming.ts";
 import { AwaitingPayment, NeedsAttention, RecentlyPaid } from "./ArScreen.tsx";
 
-export type Requested = ReadonlyMap<string, "SEND" | "CANCEL">; // this session only, by invoice number
+export type Requested = ReadonlyMap<string, OutboxRequest>; // this session only, by invoice number
 
 interface Props {
   items: ArItem[]; today: string;
@@ -19,15 +20,18 @@ interface Props {
   requested: Requested;
   onSend: (i: OutboxItem) => Promise<void>;
   onCancel: (i: OutboxItem) => Promise<void>;
+  onCloseOut: (i: OutboxItem) => Promise<void>; // no email: discard the draft, issue the invoice, the deposit closes it
   marked: ReadonlyMap<string, MarkAction>; // this session only, by invoice number
   onMark: (i: ArItem, a: MarkAction) => Promise<void>;
 }
 
-function Preview({ i, requested, onSend, onCancel }: { i: OutboxItem; requested?: "SEND" | "CANCEL"; onSend: Props["onSend"]; onCancel: Props["onCancel"] }) {
+function Preview({ i, requested, onSend, onCancel, onCloseOut }: { i: OutboxItem; requested?: OutboxRequest; onSend: Props["onSend"]; onCancel: Props["onCancel"]; onCloseOut: Props["onCloseOut"] }) {
   const label = useLabel();
   const [confirm, setConfirm] = useState(false);
   const [err, setErr] = useState("");
   const [busy, setBusy] = useState(false);
+  const [closing, setClosing] = useState(false);
+  const state = cardState(requested);
   const run = async (f: () => Promise<void>) => {
     setBusy(true); setErr("");
     try { await f(); setConfirm(false); } catch (e) { setErr(e instanceof Error ? e.message : "Could not save"); }
@@ -47,7 +51,12 @@ function Preview({ i, requested, onSend, onCancel }: { i: OutboxItem; requested?
         <dt>Attached</dt><dd>{i.pdf ? <a href={i.pdf} target="_blank" rel="noreferrer">{i.attachment || "invoice PDF"}</a> : (i.attachment || <span className="warn">no PDF</span>)}</dd>
       </dl>
       <pre className="mailbody">{i.body}</pre>
-      {requested === "SEND" ? (
+      {state.closedOut ? (
+        <>
+          <p className="ok">Closed out. The draft is discarded within about a minute; Refresh to see it under Awaiting payment.</p>
+          <button className="btn big" disabled={state.approveDisabled}>Approve and send</button>
+        </>
+      ) : state.sendRequested ? (
         <>
           <p className="ok">Approved. It goes out within about a minute; Refresh to see it under Sent.</p>
           <button className="btn" disabled={busy} onClick={() => run(() => onCancel(i))}>Cancel send</button>
@@ -61,7 +70,15 @@ function Preview({ i, requested, onSend, onCancel }: { i: OutboxItem; requested?
           </div>
         </>
       ) : (
-        <button className="btn big" disabled={!canApprove(i)} onClick={() => setConfirm(true)}>Approve and send</button>
+        <>
+          <button className="btn big" disabled={!canApprove(i)} onClick={() => setConfirm(true)}>Approve and send</button>
+          <button className="btn alt" onClick={() => setClosing(true)}>No email: close out with the deposit</button>
+        </>
+      )}
+      {closing && (
+        <ConfirmSheet title={label(i.code)} confirmLabel="Confirm" onConfirm={() => onCloseOut(i)} onClose={() => setClosing(false)}>
+          <p><strong>Close out invoice {i.number} for {money(i.total)} without emailing?</strong> It counts as issued and waits for the deposit to match. The email draft is discarded.</p>
+        </ConfirmSheet>
       )}
       {requested === "CANCEL" && <p className="sub">Send cancelled. Nothing was emailed.</p>}
       {err && <p className="warn">{err}</p>}
@@ -72,7 +89,7 @@ function Preview({ i, requested, onSend, onCancel }: { i: OutboxItem; requested?
 // Top to bottom: To do (App Upcoming), Ready to send (App Outbox previews, names on only), Needs attention (drafts
 // with no email), Awaiting payment, Recently paid. Everything except the previews works with names off.
 export function InvoicesScreen(p: Props) {
-  const { items, today, outbox, outboxNote, requested, onSend, onCancel } = p;
+  const { items, today, outbox, outboxNote, requested, onSend, onCancel, onCloseOut } = p;
   const label = useLabel();
   const st = invoiceStats(items, today);
   const ready = (outbox ?? []).filter((i) => i.status === "READY");
@@ -89,7 +106,7 @@ export function InvoicesScreen(p: Props) {
         <>
           {ready.length === 0 && <p className="muted">Nothing waiting. Tap Create invoice above once a visit is over.</p>}
           <ul className="list">
-            {ready.map((i) => <Preview key={i.number} i={i} requested={requested.get(i.number)} onSend={onSend} onCancel={onCancel} />)}
+            {ready.map((i) => <Preview key={i.number} i={i} requested={requested.get(i.number)} onSend={onSend} onCancel={onCancel} onCloseOut={onCloseOut} />)}
           </ul>
           {sent.length > 0 && (
             <>

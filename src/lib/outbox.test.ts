@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { canApprove, parseOutbox, sendRow } from "./outbox.ts";
+import { canApprove, cardState, parseOutbox, sendRow } from "./outbox.ts";
 import { outboxFixture } from "./fixtures.ts";
 
 describe("parseOutbox", () => {
@@ -21,6 +21,17 @@ describe("sendRow", () => {
     expect(sendRow("SEND", "9101", "fp1", "Julie", now)).toEqual(["9101", "fp1", "SEND", "Julie", "2030-03-15T10:00:00.000Z"]);
     expect(sendRow("CANCEL", "9101", "fp1", "Julie", now)).toEqual(["9101", "", "CANCEL", "Julie", "2030-03-15T10:00:00.000Z"]);
     expect(sendRow("DRAFT", "9101", "fp1", "Wade", now)).toEqual(["", "", "DRAFT", "Wade", "2030-03-15T10:00:00.000Z"]);
+  });
+});
+
+describe("cardState", () => {
+  it("a closed-out card shows the closed-out state and turns Approve off", () => {
+    expect(cardState("CLOSE_OUT")).toEqual({ approveDisabled: true, closedOut: true, sendRequested: false });
+  });
+  it("send keeps its own state; nothing requested or a cancelled send leaves Approve available", () => {
+    expect(cardState("SEND")).toEqual({ approveDisabled: true, closedOut: false, sendRequested: true });
+    expect(cardState("CANCEL")).toEqual({ approveDisabled: false, closedOut: false, sendRequested: false });
+    expect(cardState(undefined).approveDisabled).toBe(false);
   });
 });
 

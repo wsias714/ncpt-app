@@ -51,6 +51,9 @@ describe("App Send rows", () => {
       expect(sendRow(a, "9011", "ignored-fp", "Wade", now)).toEqual(["9011", "", a, "Wade", "2030-03-15T10:00:00.000Z"]);
     }
   });
+  it("CLOSE_OUT has the same shape as the marks: number, no fingerprint, in order", () => {
+    expect(sendRow("CLOSE_OUT", "9011", "ignored-fp", "Julie", now)).toEqual(["9011", "", "CLOSE_OUT", "Julie", "2030-03-15T10:00:00.000Z"]);
+  });
   it("the old generic DRAFT still builds its blank row", () => {
     expect(sendRow("DRAFT", "9011", "fp", "Wade", now)).toEqual(["", "", "DRAFT", "Wade", "2030-03-15T10:00:00.000Z"]);
   });
