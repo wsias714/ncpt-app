@@ -103,8 +103,9 @@ export function TodayScreen({ m, openTx, goUnpaid, goTransactions, goReports, go
           </button>
           <button className="stat tap" onClick={goUnpaid}>
             <div className="label">Ready to send</div>
-            <div className="value">{inv.drafts.length}</div>
-            <div className="sub">{money(inv.draftsTotal)} in drafts</div>
+            <div className="value">{inv.readyToSend.length}</div>
+            <div className="sub">{money(inv.readyToSendTotal)} in drafts</div>
+            {inv.needsAttention.length > 0 && <div className="sub warn">{inv.needsAttention.length} need attention</div>}
           </button>
           <button className="stat tap" onClick={goUnpaid}>
             <div className="label">Paid, last 30 days</div>

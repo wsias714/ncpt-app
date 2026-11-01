@@ -1,19 +1,26 @@
 import { useState } from "react";
 import { useLabel } from "../components/NamesContext.tsx";
-import { canApprove, type OutboxItem } from "../lib/outbox.ts";
-import { money, type ArItem } from "../lib/parse.ts";
-import { ArScreen } from "./ArScreen.tsx";
+import { UpcomingList } from "../components/UpcomingList.tsx";
+import { canApprove, type MarkAction, type OutboxItem } from "../lib/outbox.ts";
+import { invoiceStats, money, type ArItem } from "../lib/parse.ts";
+import type { UpcomingRow } from "../lib/upcoming.ts";
+import { AwaitingPayment, NeedsAttention, RecentlyPaid } from "./ArScreen.tsx";
 
 export type Requested = ReadonlyMap<string, "SEND" | "CANCEL">; // this session only, by invoice number
 
 interface Props {
   items: ArItem[]; today: string;
+  upcoming: UpcomingRow[] | null; // App Upcoming; null: could not load
+  upToday: string;                // Pacific date, for the 7-day list
+  requestedVisits: ReadonlySet<string>; // App Upcoming keys asked for this session
+  onDraftVisit: (r: UpcomingRow) => Promise<void>;
   outbox: OutboxItem[] | null; // null: not loaded (names off, or not signed in)
   outboxNote?: string;         // why it did not load, when it failed (shown instead of the names-off hint)
   requested: Requested;
   onSend: (i: OutboxItem) => Promise<void>;
   onCancel: (i: OutboxItem) => Promise<void>;
-  onDraft: () => Promise<void>;
+  marked: ReadonlyMap<string, MarkAction>; // this session only, by invoice number
+  onMark: (i: ArItem, a: MarkAction) => Promise<void>;
 }
 
 function Preview({ i, requested, onSend, onCancel }: { i: OutboxItem; requested?: "SEND" | "CANCEL"; onSend: Props["onSend"]; onCancel: Props["onCancel"] }) {
@@ -62,36 +69,31 @@ function Preview({ i, requested, onSend, onCancel }: { i: OutboxItem; requested?
   );
 }
 
-export function InvoicesScreen({ items, today, outbox, outboxNote, requested, onSend, onCancel, onDraft }: Props) {
+// Top to bottom: To do (App Upcoming), Ready to send (App Outbox previews, names on only), Needs attention (drafts
+// with no email), Awaiting payment, Recently paid. Everything except the previews works with names off.
+export function InvoicesScreen(p: Props) {
+  const { items, today, outbox, outboxNote, requested, onSend, onCancel } = p;
   const label = useLabel();
-  const [drafting, setDrafting] = useState(false);
-  const [note, setNote] = useState("");
+  const st = invoiceStats(items, today);
   const ready = (outbox ?? []).filter((i) => i.status === "READY");
   const sent = (outbox ?? []).filter((i) => i.status === "SENT");
-  const draft = async () => {
-    setDrafting(true); setNote("");
-    try { await onDraft(); setNote("Asked for new invoices. They appear here within about a minute; tap Refresh."); }
-    catch (e) { setNote(e instanceof Error ? e.message : "Could not save"); }
-    finally { setDrafting(false); }
-  };
   return (
     <section>
       <h2>Invoices</h2>
-      {/* Asking for drafts only appends a row to App Send, so it works with names off too. */}
-      <button className="btn" onClick={draft} disabled={drafting}>{drafting ? "Saving..." : "Create invoices from visits"}</button>
-      {note && <p className="sub">{note}</p>}
+      <UpcomingList rows={p.upcoming} today={p.upToday} requested={p.requestedVisits} onCreate={p.onDraftVisit} />
+
+      <h3>Ready to send <span className="muted">{outbox === null ? st.readyToSend.length : ready.length}</span></h3>
       {outbox === null ? (
-        <p className="warn">{outboxNote || "Email previews and Approve and send appear only with Names on, because a preview shows who it goes to. Turn Names on at the top, then Refresh."}</p>
+        <p className={outboxNote ? "warn" : "sub"}>{outboxNote || `Email previews and Approve and send appear only with Names on, because a preview shows who it goes to.${st.readyToSend.length ? ` ${st.readyToSend.length} waiting (${money(st.readyToSendTotal)}).` : ""} Turn Names on at the top, then Refresh.`}</p>
       ) : (
         <>
-          <h3>Ready to send <span className="muted">{ready.length}</span></h3>
-          {ready.length === 0 && <p className="muted">Nothing waiting. New visit notes become drafts here.</p>}
+          {ready.length === 0 && <p className="muted">Nothing waiting. Tap Create invoice above once a visit is over.</p>}
           <ul className="list">
             {ready.map((i) => <Preview key={i.number} i={i} requested={requested.get(i.number)} onSend={onSend} onCancel={onCancel} />)}
           </ul>
           {sent.length > 0 && (
             <>
-              <h3>Sent, last 30 days</h3>
+              <h4>Sent, last 30 days</h4>
               <ul className="list">
                 {sent.map((i) => (
                   <li key={i.number} className="row">
@@ -104,7 +106,10 @@ export function InvoicesScreen({ items, today, outbox, outboxNote, requested, on
           )}
         </>
       )}
-      <ArScreen items={items} today={today} previewed={outbox === null ? undefined : new Set(ready.map((i) => i.number))} />
+
+      <NeedsAttention items={st.needsAttention} marked={p.marked} onMark={p.onMark} />
+      <AwaitingPayment st={st} today={today} />
+      <RecentlyPaid st={st} />
     </section>
   );
 }

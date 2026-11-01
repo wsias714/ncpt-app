@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useLabel } from "./NamesContext.tsx";
-import { accountPickerOrder, money, type Account, type Decision, type Tx } from "../lib/parse.ts";
+import { accountPickerOrder, decisionProblem, IGNORE, isPending, money, rejection, type Account, type Decision, type Tx } from "../lib/parse.ts";
 
 interface Props {
   tx: Tx;
@@ -12,8 +12,14 @@ interface Props {
 
 export function BookingSheet({ tx, accounts, latest, onSave, onClose }: Props) {
   const label = useLabel();
-  const [account, setAccount] = useState(latest?.account ?? tx.code);
+  const start = latest?.account ?? tx.code;
+  const [account, setAccount] = useState(start.toUpperCase() === IGNORE ? IGNORE : start);
   const [note, setNote] = useState("");
+  const ignoring = account === IGNORE;
+  const problem = decisionProblem(account, note);
+  const latestMap = new Map(latest ? [[tx.entry, latest]] : []);
+  const rejected = rejection(tx, latestMap);
+  const pending = isPending(tx, latestMap);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState("");
   const ordered = accountPickerOrder(accounts);
@@ -39,7 +45,8 @@ export function BookingSheet({ tx, accounts, latest, onSave, onClose }: Props) {
           </div>
           <div className="right"><strong className={tx.amount < 0 ? "" : "pos"}>{money(tx.amount)}</strong></div>
         </div>
-        <p className="sub">Now: {tx.code ? tx.category : "not booked"}{latest && latest.account !== tx.code ? ` - pending ${accounts.find((a) => a.code === latest.account)?.name ?? "change"}` : ""}</p>
+        <p className="sub">Now: {tx.code ? tx.category : "not booked"}{pending && latest ? ` - pending ${latest.account.toUpperCase() === IGNORE ? "ignore" : accounts.find((a) => a.code === latest.account)?.name ?? "change"}` : ""}</p>
+        {rejected && <p className="warn small">The last change was not applied: {rejected}.</p>}
         {tx.locked ? (
           <p className="warn">Closed month: ask Wade to unlock.</p>
         ) : (
@@ -47,6 +54,9 @@ export function BookingSheet({ tx, accounts, latest, onSave, onClose }: Props) {
             <label className="field">Book to
               <select value={account} onChange={(e) => setAccount(e.target.value)}>
                 <option value="">Choose an account</option>
+                <optgroup label="Keep out of the books">
+                  <option value={IGNORE}>Ignore this line</option>
+                </optgroup>
                 {groups.map(([title, list]) => list.length > 0 && (
                   <optgroup key={title} label={title}>
                     {list.map((a) => <option key={a.code} value={a.code}>{a.name}</option>)}
@@ -54,16 +64,17 @@ export function BookingSheet({ tx, accounts, latest, onSave, onClose }: Props) {
                 ))}
               </select>
             </label>
-            <label className="field">Note (optional)
-              <input value={note} onChange={(e) => setNote(e.target.value)} maxLength={200} />
+            <label className="field">{ignoring ? "Why ignore it? (required)" : "Note (optional)"}
+              <input value={note} onChange={(e) => setNote(e.target.value)} maxLength={200} aria-required={ignoring} />
             </label>
+            {ignoring && <p className="sub">Do not type a name. Example: moved between our own accounts. An ignored line stays out of the books and shows as a reconciling item on the bank rec.</p>}
             <p className="sub">Applies at the next publish (hourly).</p>
             {err && <p className="warn">{err}</p>}
           </>
         )}
         <div className="actions">
           <button className="link" onClick={onClose}>{tx.locked ? "Close" : "Cancel"}</button>
-          {!tx.locked && <button className="btn" onClick={save} disabled={busy || !account}>{busy ? "Saving..." : "Save"}</button>}
+          {!tx.locked && <button className="btn" onClick={save} disabled={busy || !!problem} title={problem}>{busy ? "Saving..." : "Save"}</button>}
         </div>
       </div>
     </div>

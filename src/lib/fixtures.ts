@@ -25,10 +25,10 @@ export const summaryFixture: Grid = [
 ];
 
 export const txFixture: Grid = [
-  ["Entry", "Date", "Account", "Amount", "Description", "Category code", "Category name", "Status", "Source", "Locked"],
+  ["Entry", "Date", "Account", "Amount", "Description", "Category code", "Category name", "Status", "Source", "Locked", "Applied to"],
   ["bank:t6", "2030-03-14", "Checking", -45.2, "OFFICE SUPPLY STORE 0001", "", "", "review", "tiller", ""],
   ["bank:t5", "2030-03-12", "Card", -19.99, "SOFTWARE SUBSCRIPTION", "7000", "Software", "booked", "tiller", ""],
-  ["bank:t4", "2030-03-10", "Checking", 600, "Deposit from Customer A", "4000", "Therapy income", "booked", "tiller", ""],
+  ["bank:t4", "2030-03-10", "Checking", 600, "Deposit from Customer A", "4000", "Therapy income", "booked", "tiller", "", "Invoice 9001 (Customer A)"],
   ["bank:t3", "2030-03-01", "Checking", -12.5, "MYSTERY CHARGE", "", "", "review", "tiller", ""],
   ["bank:t2", "2030-02-20", "Checking", -80, "UTILITY CO", "6100", "Utilities", "booked", "tiller", "yes"],
   ["bank:t1", "2030-01-05", "Card", -30, "OFFICE SUPPLY STORE 0001", "6200", "Supplies", "booked", "tiller", "yes"],
@@ -39,6 +39,20 @@ export const decisionsFixture: Grid = [
   ["bank:t6", "6200", "", "Julie", "2030-03-14T18:00:00.000Z"],
   ["bank:t5", "6200", "oops", "Wade", "2030-03-14T18:05:00.000Z"],
   ["bank:t5", "7000", "back", "Wade", "2030-03-14T18:06:00.000Z"],
+];
+
+// The App Transactions shape for an ignored line (Status ignored, Category code IGNORE) and a proposed match.
+export const txIgnoredRows: Grid = [
+  ["bank:t7", "2030-03-13", "Checking", 25, "TRANSFER FROM SAVINGS 0002", "IGNORE", "Ignored: moved between own accounts", "ignored", "bank", "", ""],
+  ["bank:t8", "2030-03-11", "Checking", 450, "MOBILE DEPOSIT", "4000", "Therapy income", "booked", "bank", "", "Invoices 9102, 9103 (Customer B) (proposed)"],
+];
+
+// App Decisions with column F (Status) as Python writes it back.
+export const decisionsWithStatusFixture: Grid = [
+  ["Entry", "Account", "Note", "Who", "When", "Status"],
+  ["bank:t7", "ignore", "moved between own accounts", "Wade", "2030-03-14T18:00:00.000Z", "ignored"],
+  ["bank:t2", "7000", "", "Julie", "2030-03-14T18:01:00.000Z", "rejected: locked period"],
+  ["bank:t3", "6200", "", "Julie", "2030-03-14T18:02:00.000Z", ""],
 ];
 
 export const monthlyFixture: Grid = [
@@ -57,6 +71,20 @@ export const invoicesFixture: Grid = [
   ["9003", "Not A Code", "2030-03-01", "2030-03-31", "$600.00", "SENT", "wave"],
   ["9004", "Customer C", "2030-03-05", "2030-04-04", 100, "DRAFT", "ncpt-books"],
   ["9005", "Customer D", "2029-11-01", "2029-12-01", 50, "PAID", "wave"],
+];
+
+// The 10-column App Invoices grid (appdata.invoices_grid, header from drive.TABS), as the Sheets API hands it back:
+// Number may come back as a number, dates as M/D/YYYY or ISO.
+export const invoices10Fixture: Grid = [
+  ["Number", "Code", "Invoice date", "Due", "Total", "Status", "Source", "Paid on", "Deposit", "Email draft"],
+  ["9010", "Customer A", "2030-03-02", "2030-03-02", 200, "DRAFT", "ncpt-books", "", "", "Y"],
+  [9011, "Customer B", "3/3/2030", "3/3/2030", 200, "DRAFT", "ncpt-books", "", "", "N"],
+  ["9012", "Customer C", "2030-03-01", "2030-03-31", 1350, "SENT", "ncpt-books", "", "", "N"],
+  ["9013", "Customer D", "2030-02-10", "2030-02-10", 200, "ISSUED", "ncpt-books", "", "", "N"],
+  ["9014", "Customer A", "2030-02-01", "2030-03-03", 900, "PAID", "wave", "2030-03-04", "3/4 $899.50 + 3/4 $0.50", "N"],
+  ["9015", "Customer B", "2029-12-01", "2029-12-31", 400, "PAID", "wave", "2030-01-02", "1/2 $400", "N"],
+  ["9016", "Customer C", "2030-03-05", "2030-03-05", 200, "VOID", "ncpt-books", "", "", "N"],
+  ["9017", "Customer D", "2030-01-05", "2030-01-05", 100, "WRITTEN_OFF", "wave", "", "", "N"],
 ];
 
 export const accountsFixture: Grid = [

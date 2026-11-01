@@ -3,6 +3,8 @@
 // `Customer Codes` is read separately, only when names are on, into memory only.
 // The raw `Invoices`, `Journal`, `Customers`, `Payers` and `Review` tabs are never read.
 // `App Outbox` (invoice emails, with recipients) is read like Customer Codes: names on only, memory only.
+// `App Upcoming` (expected invoices, codes only) is read on its own, names on or off, so a missing tab (before the
+// script first publishes it) cannot fail the main batch.
 // Writes are appended rows to four input tabs: `App Decisions` (bookings), `App Send` (invoice approvals),
 // `App Approvals` (payroll run approve or revoke) and `App Filings` (a filing recorded as done). The app
 // pays, files and submits nothing; Python reads these rows at the next publish.
@@ -11,6 +13,7 @@ import { FILINGS_TAB } from "./filings.ts";
 import { CODES_TAB } from "./names.ts";
 import { OUTBOX_TAB, SEND_TAB } from "./outbox.ts";
 import { APPROVALS_TAB } from "./payroll.ts";
+import { UPCOMING_TAB } from "./upcoming.ts";
 import type { Who } from "./who.ts";
 
 // Set at build time (repo variable VITE_SHEET_ID, or .env.local); deliberately not in the source.
@@ -61,9 +64,11 @@ export function filingsUrl(sheetId: string): string {
   return `${BASE(sheetId)}/values/${encodeURIComponent(FILINGS_TAB + "!A:I")}:append?valueInputOption=RAW&insertDataOption=INSERT_ROWS`;
 }
 
-// [Entry, Account, Note, Who, When]
+// [Entry, Account, Note, Who, When]. Account is a chart code (re-book) or IGNORE (Note = the reason, codes only).
+// Column F (Status) is left blank: Python writes it back after each build.
 export function decisionRow(entry: string, account: string, note: string, who: Who, now: Date = new Date()): string[] {
-  return [entry, account, note.trim(), who, now.toISOString()];
+  const acct = account.trim().toUpperCase() === "IGNORE" ? "IGNORE" : account.trim(); // uppercase, to match the published code
+  return [entry, acct, note.trim(), who, now.toISOString()];
 }
 
 export function createReader(
@@ -109,6 +114,12 @@ export function createReader(
     // Runtime-only: invoice emails awaiting approval. Missing tab = empty.
     async readOutbox(): Promise<Grid> {
       const res = await fetchFn(tabUrl(sheetId, OUTBOX_TAB), { headers: auth() });
+      if (res.status === 401) throw new AuthExpiredError("Sign-in expired");
+      return res.ok ? (((await res.json()) as { values?: Grid }).values ?? []) : [];
+    },
+    // Expected invoices for the next 7 days (codes only). Missing tab or any non-auth failure = empty.
+    async readUpcoming(): Promise<Grid> {
+      const res = await fetchFn(tabUrl(sheetId, UPCOMING_TAB), { headers: auth() });
       if (res.status === 401) throw new AuthExpiredError("Sign-in expired");
       return res.ok ? (((await res.json()) as { values?: Grid }).values ?? []) : [];
     },

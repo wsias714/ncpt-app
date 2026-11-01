@@ -3,10 +3,11 @@ import { BookingSheet } from "./components/BookingSheet.tsx";
 import { NamesContext } from "./components/NamesContext.tsx";
 import { loadNameMap, makeLabeler, namesEnabled, namesForcedOff, NO_NAMES, saveNamesPref, savedNamesPref, type NameMap } from "./lib/names.ts";
 import { clientIdConfigured, getToken, signIn, signOut } from "./lib/auth.ts";
-import { demoActive, demoOutbox, demoTabsFor } from "./lib/demo.ts";
+import { demoActive, demoOutbox, demoOutboxOn, demoTabsFor, demoUpcomingFor } from "./lib/demo.ts";
 import { buildModel } from "./lib/model.ts";
-import { parseOutbox, sendRow, type OutboxItem, type SendAction } from "./lib/outbox.ts";
-import { NO_FILTER, type Decision, type Tx, type TxFilter } from "./lib/parse.ts";
+import { parseOutbox, sendRow, type MarkAction, type OutboxItem, type SendAction } from "./lib/outbox.ts";
+import { NO_FILTER, type ArItem, type Decision, type Tx, type TxFilter } from "./lib/parse.ts";
+import { pacificToday, parseUpcoming, type UpcomingRow } from "./lib/upcoming.ts";
 import { approvalRow, type ApprovalAction, type PayrollRun } from "./lib/payroll.ts";
 import { AuthExpiredError, createReader, decisionRow, type Tabs } from "./lib/sheets.ts";
 import { getWho, setWho, type Who } from "./lib/who.ts";
@@ -31,7 +32,7 @@ export function App() {
   const demo = demoActive(window.location.search); // dev server only: fixtures, no sign-in
   const [who, setWhoState] = useState<Who | null>(demo ? "Wade" : getWho());
   const [signedIn, setSignedIn] = useState(demo);
-  const [tabs, setTabs] = useState<Tabs | null>(demo ? demoTabsFor(window.location.search) : null);
+  const [tabs, setTabs] = useState<Tabs | null>(demo ? demoTabsFor(window.location.search, todayIso()) : null);
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
   const [screen, setScreen] = useState<Screen>("today");
@@ -56,8 +57,18 @@ export function App() {
     return () => { live = false; };
   }, [signedIn, namesOn]);
   // Invoice emails (recipients and text) are read like names: names on only, memory only. Demo uses made-up fixtures.
-  const [outbox, setOutbox] = useState<OutboxItem[] | null>(demo ? parseOutbox(demoOutbox) : null);
+  const [outbox, setOutbox] = useState<OutboxItem[] | null>(demo && demoOutboxOn(window.location.search, namesOn) ? parseOutbox(demoOutbox) : null);
   const [requested, setRequested] = useState<Requested>(new Map());
+  // Expected invoices (App Upcoming, codes only): read with names on or off, on its own so a missing tab is just empty.
+  const [upcoming, setUpcoming] = useState<UpcomingRow[] | null>(demo ? parseUpcoming(demoUpcomingFor(window.location.search, pacificToday())) : []);
+  const [requestedVisits, setRequestedVisits] = useState<ReadonlySet<string>>(new Set()); // App Upcoming keys, this session
+  const [marked, setMarked] = useState<ReadonlyMap<string, MarkAction>>(new Map()); // invoice number -> action, this session
+  const loadUpcoming = useCallback(async () => {
+    if (demo || !signedIn) return;
+    try { setUpcoming(parseUpcoming(await reader.readUpcoming())); }
+    catch { setUpcoming(null); }
+  }, [demo, signedIn]);
+  useEffect(() => { void loadUpcoming(); }, [loadUpcoming]);
   const [outboxNote, setOutboxNote] = useState("");
   const loadOutbox = useCallback(async () => {
     if (demo) return;
@@ -79,19 +90,19 @@ export function App() {
     setBusy(true); setError("");
     try {
       setTabs(await reader.read(force));
-      if (force) await loadOutbox();
+      if (force) await Promise.all([loadOutbox(), loadUpcoming()]);
     } catch (e) {
       if (e instanceof AuthExpiredError) { setSignedIn(false); setTabs(null); }
       setError(e instanceof Error ? e.message : "Something went wrong");
     } finally { setBusy(false); }
-  }, [loadOutbox]);
+  }, [loadOutbox, loadUpcoming]);
 
   const doSignIn = async () => {
     setError("");
     try { await signIn(); setSignedIn(true); await load(true); }
     catch (e) { setError(e instanceof Error ? e.message : "Sign-in failed"); }
   };
-  const doSignOut = () => { signOut(); reader.clear(); setNameMap(NO_NAMES); setTabs(null); setSignedIn(false); setSent([]); setOutbox(null); setRequested(new Map()); setApprovalSent(null); setFiled(new Set()); };
+  const doSignOut = () => { signOut(); reader.clear(); setNameMap(NO_NAMES); setTabs(null); setSignedIn(false); setSent([]); setOutbox(null); setRequested(new Map()); setApprovalSent(null); setFiled(new Set()); setUpcoming([]); setRequestedVisits(new Set()); setMarked(new Map()); };
 
   const model = useMemo(() => (tabs ? buildModel(tabs, todayIso(), sent) : null), [tabs, sent]);
 
@@ -100,15 +111,30 @@ export function App() {
     const row = decisionRow(tx.entry, account, note, who);
     try { if (!demo) await reader.appendDecision(row); }
     catch (e) { if (e instanceof AuthExpiredError) { setSignedIn(false); setTabs(null); } throw e; }
-    setSent((s) => [...s, { entry: row[0], account: row[1], note: row[2], who: row[3], when: row[4] }]);
+    setSent((s) => [...s, { entry: row[0], account: row[1], note: row[2], who: row[3], when: row[4], status: "" }]);
   };
 
-  const requestSend = async (action: SendAction, item?: OutboxItem) => {
-    if (!who) return;
-    const row = sendRow(action, item?.number ?? "", item?.fingerprint ?? "", who);
+  // Every invoice request is one appended App Send row; the script in Julie's account acts on it. Demo writes nothing.
+  const appendSend = async (row: string[]) => {
     try { if (!demo) await reader.appendSend(row); }
     catch (e) { if (e instanceof AuthExpiredError) { setSignedIn(false); setTabs(null); } throw e; }
-    if (item && action !== "DRAFT") setRequested((r) => new Map(r).set(item.number, action));
+  };
+  const requestSend = async (action: "SEND" | "CANCEL", item: OutboxItem) => {
+    if (!who) return;
+    await appendSend(sendRow(action as SendAction, item.number, item.fingerprint, who));
+    setRequested((r) => new Map(r).set(item.number, action));
+  };
+  // Tap to create: [Key, Fingerprint, DRAFT_VISIT, Who, When]. The button stays disabled for the session.
+  const draftVisit = async (r: UpcomingRow) => {
+    if (!who) return;
+    await appendSend(sendRow("DRAFT_VISIT", r.key, r.fingerprint, who));
+    setRequestedVisits((s) => new Set([...s, r.key]));
+  };
+  // Mark sent / Mark issued / Void a draft with no email: [Number, "", action, Who, When].
+  const markInvoice = async (i: ArItem, action: MarkAction) => {
+    if (!who) return;
+    await appendSend(sendRow(action, i.number, "", who));
+    setMarked((m) => new Map(m).set(i.number, action));
   };
 
   // Payroll run approve or revoke: one appended row on App Approvals. The app pays and files nothing.
@@ -195,8 +221,11 @@ export function App() {
         )}
         {screen === "reports" && <ReportsScreen m={model} filterByCode={filterByCode} openInvoices={() => go("ar")} />}
         {screen === "ar" && (
-          <InvoicesScreen items={model.invoices} today={model.today} outbox={outbox} outboxNote={outboxNote} requested={requested}
-            onSend={(i) => requestSend("SEND", i)} onCancel={(i) => requestSend("CANCEL", i)} onDraft={() => requestSend("DRAFT")} />
+          <InvoicesScreen items={model.invoices} today={model.today} upcoming={upcoming} upToday={pacificToday()}
+            requestedVisits={requestedVisits} onDraftVisit={draftVisit}
+            outbox={outbox} outboxNote={outboxNote} requested={requested}
+            onSend={(i) => requestSend("SEND", i)} onCancel={(i) => requestSend("CANCEL", i)}
+            marked={marked} onMark={markInvoice} />
         )}
       </main>
       <nav>

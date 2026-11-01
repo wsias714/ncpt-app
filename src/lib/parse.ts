@@ -26,13 +26,15 @@ export function customerCode(v: unknown): string {
   return CODE_RE.test(s) ? s : UNLABELED;
 }
 
-// Accepts ISO strings, ISO datetimes, or a Sheets serial day number.
+// Accepts ISO strings, ISO datetimes, M/D/YYYY (a date cell's formatted string), or a Sheets serial day number.
 export function toIsoDate(v: unknown): string {
   if (typeof v === "number" && Number.isFinite(v)) {
     return new Date(Math.round((v - 25569) * 86_400_000)).toISOString().slice(0, 10);
   }
   const s = text(v);
-  return /^\d{4}-\d{2}-\d{2}/.test(s) ? s.slice(0, 10) : s;
+  if (/^\d{4}-\d{2}-\d{2}/.test(s)) return s.slice(0, 10);
+  const us = /^(\d{1,2})\/(\d{1,2})\/(\d{4})$/.exec(s);
+  return us ? `${us[3]}-${us[1].padStart(2, "0")}-${us[2].padStart(2, "0")}` : s;
 }
 
 export function daysBetween(fromIso: string, today: string): number | null {
@@ -124,12 +126,17 @@ export interface Tx {
   account: "Checking" | "Card" | string;
   amount: number;
   description: string;
-  code: string;
-  category: string;
-  status: string; // booked | review
+  code: string; // a chart code, or IGNORE for a line kept out of the books
+  category: string; // the account name, or "Ignored: <reason>"
+  status: string; // booked | review | ignored
   source: string;
   locked: boolean; // entry sits in a closed month: no re-booking
+  appliedTo: string; // the invoice(s) a deposit paid: "Invoice 3534 (Customer C)", "(proposed)" appended if unvalidated
 }
+
+// App Decisions account value that keeps a bank or card line out of the books (needs a reason in Note).
+export const IGNORE = "IGNORE";
+export const isIgnored = (tx: Tx): boolean => tx.status === "ignored" || tx.code.toUpperCase() === IGNORE;
 
 export function parseTransactions(grid: Grid): Tx[] {
   const out: Tx[] = [];
@@ -140,18 +147,51 @@ export function parseTransactions(grid: Grid): Tx[] {
     out.push({
       entry, date: toIsoDate(r[1]), account: text(r[2]), amount, description: text(r[4]),
       code: text(r[5]), category: text(r[6]), status: text(r[7]).toLowerCase(), source: text(r[8]),
-      locked: text(r[9]).toLowerCase() === "yes",
+      locked: text(r[9]).toLowerCase() === "yes", appliedTo: text(r[10]),
     });
   }
   return out;
 }
 
-export interface Decision { entry: string; account: string; note: string; who: string; when: string }
+// [Entry, Account, Note, Who, When, Status]; the app appends A:E, Python writes Status back after each build:
+// applied | ignored | superseded | rejected: <why>.
+export interface Decision { entry: string; account: string; note: string; who: string; when: string; status: string }
 
 export function parseDecisions(grid: Grid): Decision[] {
   return dataRows(grid)
-    .map((r) => ({ entry: text(r[0]), account: text(r[1]), note: text(r[2]), who: text(r[3]), when: text(r[4]) }))
+    .map((r) => ({ entry: text(r[0]), account: text(r[1]), note: text(r[2]), who: text(r[3]), when: text(r[4]), status: text(r[5]) }))
     .filter((d) => d.entry && d.account);
+}
+
+/** Why the latest decision for this line was not applied ("locked period"), or "" when it was not rejected. */
+export function rejection(tx: Tx, latest: Map<string, Decision>): string {
+  const d = latest.get(tx.entry);
+  if (!d || !/^rejected/i.test(d.status)) return "";
+  return d.status.replace(/^rejected:?\s*/i, "") || "rejected";
+}
+
+/** A row for App Decisions: a chart code (re-book) or IGNORE. Returns why it cannot be saved, or "". */
+export function decisionProblem(account: string, note: string): string {
+  if (!account) return "Choose an account";
+  if (account.toUpperCase() === IGNORE && !note.trim()) return "Say why it is ignored";
+  return "";
+}
+
+export interface TxChip { text: string; kind: "pend" | "review" | "ignored" | "rejected" | "" }
+
+/**
+ * The status chip on a transaction row. A rejected decision (Python could not apply it) shows why and the line keeps
+ * its published state; a pending one shows the new category (or "ignore"); an ignored line shows "Ignored: <reason>".
+ */
+export function txChip(tx: Tx, latest: Map<string, Decision>, accountNames: Map<string, string>): TxChip {
+  const rej = rejection(tx, latest);
+  if (rej) return { text: `not applied: ${rej}`, kind: "rejected" };
+  if (isPending(tx, latest)) {
+    const acct = latest.get(tx.entry)?.account ?? "";
+    return { text: `pending: ${acct.toUpperCase() === IGNORE ? "ignore" : accountNames.get(acct) ?? "new category"}`, kind: "pend" };
+  }
+  if (isIgnored(tx)) return { text: /^ignored/i.test(tx.category) ? tx.category : "Ignored", kind: "ignored" };
+  return tx.code ? { text: tx.category, kind: "" } : { text: "Needs booking", kind: "review" };
 }
 
 // Latest row per entry wins (the tab is append-only, so later rows are newer).
@@ -161,9 +201,11 @@ export function latestDecisions(ds: Decision[]): Map<string, Decision> {
   return m;
 }
 
+// Pending: the latest decision is not yet the published Category code (IGNORE compares case-insensitively, since
+// Python accepts any case) and Python has not rejected it.
 export function isPending(tx: Tx, latest: Map<string, Decision>): boolean {
   const d = latest.get(tx.entry);
-  return !!d && d.account !== tx.code;
+  return !!d && d.account.toUpperCase() !== tx.code.toUpperCase() && !/^rejected/i.test(d.status);
 }
 
 export const needsBooking = (tx: Tx, latest: Map<string, Decision>): boolean =>
@@ -203,7 +245,7 @@ export function txMonths(txs: Tx[]): string[] {
 
 export function txCategories(txs: Tx[]): { code: string; name: string }[] {
   const m = new Map<string, string>();
-  for (const t of txs) if (t.code && !m.has(t.code)) m.set(t.code, t.category);
+  for (const t of txs) if (t.code && !m.has(t.code)) m.set(t.code, t.code.toUpperCase() === IGNORE ? "Ignored" : t.category);
   return [...m].map(([code, name]) => ({ code, name })).sort((a, b) => a.code.localeCompare(b.code));
 }
 
@@ -236,15 +278,24 @@ export function parseMonthly(grid: Grid): MonthRow[] {
 
 // ---- App Invoices ----------------------------------------------------------------------------
 
+// Header: Number, Code, Invoice date, Due, Total, Status, Source, Paid on, Deposit, Email draft. The last three
+// were added 2026-11 (older 7-column grids still parse: no paid date, email draft unknown).
+// Status is the book status: DRAFT (made, not delivered), SENT, ISSUED (handed over at the visit), PAID, VOID
+// (never delivered, never posts), WRITTEN_OFF. Only SENT and ISSUED are open receivables.
+export type InvoiceStatus = "DRAFT" | "SENT" | "ISSUED" | "PAID" | "VOID" | "WRITTEN_OFF";
+
 export interface ArItem {
   number: string;
   code: string;
   invoiceDate: string;
   due: string;
   amount: number;
-  status: "DRAFT" | "SENT" | "PAID" | string;
+  status: InvoiceStatus | string;
   source: string;
-  ageDays: number | null;
+  ageDays: number | null; // days since the invoice date
+  paidOn: string; // latest matched deposit date (or the desk decision date for cash); "" if unpaid or unknown
+  deposit: string; // like "10/2 $5,062 + 10/2 $1"
+  emailDraft: boolean | null; // a Gmail draft exists (Y/N); null on an older grid without the column
 }
 
 export function parseAppInvoices(grid: Grid, today: string): ArItem[] {
@@ -254,35 +305,50 @@ export function parseAppInvoices(grid: Grid, today: string): ArItem[] {
     const amount = toNumber(r[4]);
     if (!number || amount === null) continue;
     const invoiceDate = toIsoDate(r[2]);
+    const ed = text(r[9]).toUpperCase();
     out.push({
       number, code: customerCode(r[1]), invoiceDate, due: toIsoDate(r[3]), amount,
       status: text(r[5]).toUpperCase(), source: text(r[6]), ageDays: daysBetween(invoiceDate, today),
+      paidOn: toIsoDate(r[7]), deposit: text(r[8]), emailDraft: ed === "Y" ? true : ed === "N" ? false : null,
     });
   }
   return out;
 }
 
+export const isOpen = (i: ArItem): boolean => i.status === "SENT" || i.status === "ISSUED";
+
 export interface InvoiceStats {
-  outstanding: ArItem[]; // SENT, oldest first
+  outstanding: ArItem[]; // SENT or ISSUED (open receivables), oldest first: "Awaiting payment"
   outstandingTotal: number;
   overdue: ArItem[];
   oldestAgeDays: number | null;
-  drafts: ArItem[];
+  drafts: ArItem[]; // every DRAFT
   draftsTotal: number;
-  paid30: ArItem[]; // PAID, invoice dated in the last 30 days (the tab has no paid date)
+  readyToSend: ArItem[]; // DRAFT with an email draft (or unknown, on an older grid): previewed under Ready to send
+  readyToSendTotal: number;
+  needsAttention: ArItem[]; // DRAFT with no email draft: Mark sent / Mark issued / Void
+  paid30: ArItem[]; // PAID in the last 30 days (paid date; invoice date on an older grid), newest first
   paid30Total: number;
 }
 
 export function invoiceStats(items: ArItem[], today: string): InvoiceStats {
   const sum = (xs: ArItem[]) => round2(xs.reduce((s, i) => s + i.amount, 0));
-  const outstanding = items.filter((i) => i.status === "SENT").sort((a, b) => (b.ageDays ?? -1) - (a.ageDays ?? -1));
+  const outstanding = items.filter(isOpen).sort((a, b) => (b.ageDays ?? -1) - (a.ageDays ?? -1) || a.number.localeCompare(b.number));
   const overdue = outstanding.filter((i) => i.due && i.due < today);
   const drafts = items.filter((i) => i.status === "DRAFT");
-  const paid30 = items.filter((i) => i.status === "PAID" && i.ageDays !== null && i.ageDays >= 0 && i.ageDays <= 30);
+  const readyToSend = drafts.filter((i) => i.emailDraft !== false);
+  const paidDate = (i: ArItem) => i.paidOn || i.invoiceDate;
+  const paid30 = items.filter((i) => {
+    if (i.status !== "PAID") return false;
+    const d = daysBetween(paidDate(i), today);
+    return d !== null && d >= 0 && d <= 30;
+  }).sort((a, b) => paidDate(b).localeCompare(paidDate(a)));
   return {
     outstanding, outstandingTotal: sum(outstanding), overdue,
     oldestAgeDays: outstanding.length ? outstanding[0].ageDays : null,
-    drafts, draftsTotal: sum(drafts), paid30, paid30Total: sum(paid30),
+    drafts, draftsTotal: sum(drafts), readyToSend, readyToSendTotal: sum(readyToSend),
+    needsAttention: drafts.filter((i) => i.emailDraft === false),
+    paid30, paid30Total: sum(paid30),
   };
 }
 

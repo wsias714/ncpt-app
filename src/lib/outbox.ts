@@ -8,7 +8,11 @@ import type { Who } from "./who.ts";
 export const OUTBOX_TAB = "App Outbox";
 export const SEND_TAB = "App Send";
 
-export type SendAction = "SEND" | "CANCEL" | "DRAFT";
+// SEND / CANCEL: an Outbox preview, by invoice number. DRAFT_VISIT: draft one App Upcoming row (its Key and
+// Fingerprint). MARK_SENT / MARK_ISSUED / VOID: a DRAFT invoice with no Gmail draft, by number. DRAFT (draft
+// everything due) is the old generic request: still understood by the script, no longer offered by any screen.
+export type SendAction = "SEND" | "CANCEL" | "DRAFT" | "DRAFT_VISIT" | "MARK_SENT" | "MARK_ISSUED" | "VOID";
+export type MarkAction = "MARK_SENT" | "MARK_ISSUED" | "VOID";
 
 export interface OutboxItem {
   number: string; code: string; date: string; due: string; total: number;
@@ -40,9 +44,13 @@ export function parseOutbox(grid: Grid): OutboxItem[] {
   return out;
 }
 
-/** [Number, Fingerprint, Action, Who, When] - the whole approval, append-only. */
+/**
+ * [Number, Fingerprint, Action, Who, When] - the whole request, append-only. For DRAFT_VISIT the first two cells are
+ * the App Upcoming Key and Fingerprint; only SEND and DRAFT_VISIT carry a fingerprint; DRAFT carries neither.
+ */
 export function sendRow(action: SendAction, number: string, fingerprint: string, who: Who, now: Date = new Date()): string[] {
-  return [action === "DRAFT" ? "" : number, action === "SEND" ? fingerprint : "", action, who, now.toISOString()];
+  const fp = action === "SEND" || action === "DRAFT_VISIT" ? fingerprint : "";
+  return [action === "DRAFT" ? "" : number, fp, action, who, now.toISOString()];
 }
 
 /** Only a READY item with a recipient, a PDF and a fingerprint can be approved. */
