@@ -2,8 +2,9 @@ import { useState } from "react";
 import { useLabel } from "../components/NamesContext.tsx";
 import { UpcomingList } from "../components/UpcomingList.tsx";
 import { ConfirmSheet } from "../components/ConfirmSheet.tsx";
+import { AwaitingOk, type MatchAnswers } from "../components/MatchCards.tsx";
 import { canApprove, cardState, type MarkAction, type OutboxItem, type OutboxRequest } from "../lib/outbox.ts";
-import { invoiceStats, money, type ArItem } from "../lib/parse.ts";
+import { invoiceStats, money, type ArItem, type Decision, type Match, type MatchChoice } from "../lib/parse.ts";
 import type { UpcomingRow } from "../lib/upcoming.ts";
 import { AwaitingPayment, NeedsAttention, RecentlyPaid } from "./ArScreen.tsx";
 
@@ -23,6 +24,10 @@ interface Props {
   onCloseOut: (i: OutboxItem) => Promise<void>; // no email: discard the draft, issue the invoice, the deposit closes it
   marked: ReadonlyMap<string, MarkAction>; // this session only, by invoice number
   onMark: (i: ArItem, a: MarkAction) => Promise<void>;
+  matches?: Match[] | null;       // App Matches: proposed deposit matches; null/undefined: not published
+  matchAnswers?: MatchAnswers;    // answered this session, by Match id
+  latest?: ReadonlyMap<string, Decision>;
+  onMatchAnswer?: (m: Match, choice: MatchChoice) => Promise<void>;
 }
 
 function Preview({ i, requested, onSend, onCancel, onCloseOut }: { i: OutboxItem; requested?: OutboxRequest; onSend: Props["onSend"]; onCancel: Props["onCancel"]; onCloseOut: Props["onCloseOut"] }) {
@@ -86,7 +91,7 @@ function Preview({ i, requested, onSend, onCancel, onCloseOut }: { i: OutboxItem
   );
 }
 
-// Top to bottom: To do (App Upcoming), Ready to send (App Outbox previews, names on only), Needs attention (drafts
+// Top to bottom: Awaiting your OK (proposed deposit matches, App Matches), To do (App Upcoming), Ready to send (App Outbox previews, names on only), Needs attention (drafts
 // with no email), Awaiting payment, Recently paid. Everything except the previews works with names off.
 export function InvoicesScreen(p: Props) {
   const { items, today, outbox, outboxNote, requested, onSend, onCancel, onCloseOut } = p;
@@ -97,6 +102,7 @@ export function InvoicesScreen(p: Props) {
   return (
     <section>
       <h2>Invoices</h2>
+      {p.onMatchAnswer && <AwaitingOk matches={p.matches ?? null} answers={p.matchAnswers ?? new Map()} latest={p.latest ?? new Map()} onAnswer={p.onMatchAnswer} />}
       <UpcomingList rows={p.upcoming} today={p.upToday} requested={p.requestedVisits} onCreate={p.onDraftVisit} />
 
       <h3>Ready to send <span className="muted">{outbox === null ? st.readyToSend.length : ready.length}</span></h3>

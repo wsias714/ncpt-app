@@ -167,3 +167,13 @@ nav button .short { display: none; }
 .sub.applied { color: var(--accent); }
 .sheettitle { margin: 0 0 8px; }
 .sheet .btnrow { margin-top: 12px; }
+
+/* Deposit matches waiting for an OK (Invoices, top) */
+.list .matchcard { padding: 12px; margin-bottom: 12px; }
+.matchcard .conf { align-self: flex-start; flex: 0 0 auto; white-space: nowrap; padding: 2px 10px; border-radius: 999px; font-size: .75rem; font-weight: 600; text-transform: uppercase; border: 1px solid var(--accent); color: var(--accent); background: var(--bg); }
+.matchcard .conf.medium { border-color: var(--amber); color: var(--amber); }
+.matchcard .conf.low { border-color: var(--warn); color: var(--warn); }
+.matchcard .could div { padding: 0; border: 0; }
+.matchcard .btnrow { margin-top: 10px; }
+.matchcard .ok { margin: 10px 0 0; }
+.matchwait { display: block; width: 100%; text-align: left; font: inherit; color: var(--accent); background: none; border: 0; padding: 6px 0; }

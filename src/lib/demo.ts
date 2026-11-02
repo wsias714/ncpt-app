@@ -8,7 +8,7 @@ import {
   accountsFixture, bsFixture, clientsFixture, deadlinesFixture, decisionsFixture, decisionsWithStatusFixture, invoicesFixture, kitDeadlinesFixture,
   kitsFixture, monthlyFixture, outboxFixture, payrollBlockedFixture, payrollFixture, pnlFixture, summaryFixture, txFixture, txIgnoredRows,
 } from "./fixtures.ts";
-import type { Grid } from "./parse.ts";
+import { MATCHES_HEAD, type Grid } from "./parse.ts";
 import type { Tabs } from "./sheets.ts";
 import { addDays, md, UPCOMING_HEAD } from "./upcoming.ts";
 
@@ -87,6 +87,20 @@ export function demoTabsFor(search: string, today: string): Tabs {
     "App Kits": q.get("kits") === "none" ? [] : kitsFixture,
   };
 }
+
+/** Made-up App Matches (a high and a low confidence proposal, plus a validated one that must not be listed). Demo writes nothing. */
+export function demoMatches(today: string): Grid {
+  const d = (n: number) => addDays(today, n);
+  return [
+    [...MATCHES_HEAD],
+    ["demo-m1", d(-1), 1350, "zelle", "high", "Customer C", "9104", 1350, "", "proposed", "Amount equals the invoice total and the payer matches earlier payments.", ""],
+    ["demo-m2", d(-2), 200.5, "mobile_deposit", "low", "Customer D", "9105", 200, "+0.50", "proposed", "Amount is close to the invoice total; the payer is new.", "Customer E: 9106; Customer A: 9102"],
+    ["demo-m3", d(-5), 899.5, "check", "high", "Customer A", "9107", 900, "-0.50", "validated", "Matches the invoice note.", ""],
+  ];
+}
+
+export const demoMatchesFor = (search: string, today: string): Grid =>
+  new URLSearchParams(search).get("matches") === "none" ? [] : demoMatches(today);
 
 export const demoUpcomingFor = (search: string, today: string): Grid =>
   new URLSearchParams(search).get("upcoming") === "none" ? [] : demoUpcoming(today);

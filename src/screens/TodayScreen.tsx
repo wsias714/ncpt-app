@@ -6,7 +6,7 @@ import { band, dayLabel, daysLabel, nextDeadline } from "../lib/deadlines.ts";
 import type { Model } from "../lib/model.ts";
 import { invoiceStats, money, needsBooking, payrollSwingNote, periodWindow, profitPoints, recentTransactions, totals, wagesTotal, type Period, type Tx } from "../lib/parse.ts";
 
-interface Props { m: Model; openTx: (t: Tx) => void; goUnpaid: () => void; goTransactions: (reviewOnly: boolean) => void; goReports: () => void; goDeadlines: () => void; goPayroll: () => void }
+interface Props { m: Model; openTx: (t: Tx) => void; goUnpaid: () => void; goTransactions: (reviewOnly: boolean) => void; goReports: () => void; goDeadlines: () => void; goPayroll: () => void; matchCount?: number }
 
 function Stat({ label, value, sub, warn }: { label: string; value: string; sub?: string; warn?: boolean }) {
   return (
@@ -21,7 +21,7 @@ function Stat({ label, value, sub, warn }: { label: string; value: string; sub?:
 const APPROVAL_WORD = { approved: "approved", stale: "approval stale", none: "not approved", revoked: "revoked" } as const;
 const APPROVAL_CLASS = { approved: "done", stale: "month", none: "blocked", revoked: "overdue" } as const;
 
-export function TodayScreen({ m, openTx, goUnpaid, goTransactions, goReports, goDeadlines, goPayroll }: Props) {
+export function TodayScreen({ m, openTx, goUnpaid, goTransactions, goReports, goDeadlines, goPayroll, matchCount = 0 }: Props) {
   const s = m.summary;
   const [period, setPeriod] = useState<Period>("1M");
   const asOf = s.asOf || m.today;
@@ -67,6 +67,10 @@ export function TodayScreen({ m, openTx, goUnpaid, goTransactions, goReports, go
         )}
         <ProfitChart points={points} title="Monthly profit before and after owner pay" />
       </div>
+
+      {matchCount > 0 && (
+        <button className="matchwait" onClick={goUnpaid}>{matchCount} {matchCount === 1 ? "deposit" : "deposits"} waiting for your OK</button>
+      )}
 
       {next && (
         <button className="card tap nextdl" onClick={goDeadlines}>

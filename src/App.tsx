@@ -3,13 +3,13 @@ import { BookingSheet } from "./components/BookingSheet.tsx";
 import { NamesContext } from "./components/NamesContext.tsx";
 import { loadNameMap, makeLabeler, namesEnabled, namesForcedOff, NO_NAMES, saveNamesPref, savedNamesPref, type NameMap } from "./lib/names.ts";
 import { clientIdConfigured, getToken, signIn, signOut } from "./lib/auth.ts";
-import { demoActive, demoOutbox, demoOutboxOn, demoTabsFor, demoUpcomingFor } from "./lib/demo.ts";
+import { demoActive, demoMatchesFor, demoOutbox, demoOutboxOn, demoTabsFor, demoUpcomingFor } from "./lib/demo.ts";
 import { buildModel } from "./lib/model.ts";
 import { parseOutbox, sendRow, type MarkAction, type OutboxItem, type SendAction } from "./lib/outbox.ts";
-import { NO_FILTER, type ArItem, type Decision, type Tx, type TxFilter } from "./lib/parse.ts";
+import { matchesWaiting, NO_FILTER, parseMatches, type ArItem, type Decision, type Match, type MatchChoice, type Tx, type TxFilter } from "./lib/parse.ts";
 import { pacificToday, parseUpcoming, type UpcomingRow } from "./lib/upcoming.ts";
 import { approvalRow, type ApprovalAction, type PayrollRun } from "./lib/payroll.ts";
-import { AuthExpiredError, createReader, decisionRow, type Tabs } from "./lib/sheets.ts";
+import { AuthExpiredError, createReader, decisionRow, matchDecisionRow, type Tabs } from "./lib/sheets.ts";
 import { getWho, setWho, type Who } from "./lib/who.ts";
 import { ClientsScreen } from "./screens/ClientsScreen.tsx";
 import { DeadlinesScreen } from "./screens/DeadlinesScreen.tsx";
@@ -63,6 +63,15 @@ export function App() {
   const [upcoming, setUpcoming] = useState<UpcomingRow[] | null>(demo ? parseUpcoming(demoUpcomingFor(window.location.search, pacificToday())) : []);
   const [requestedVisits, setRequestedVisits] = useState<ReadonlySet<string>>(new Set()); // App Upcoming keys, this session
   const [marked, setMarked] = useState<ReadonlyMap<string, MarkAction>>(new Map()); // invoice number -> action, this session
+  // Proposed deposit matches (App Matches, codes only): read on its own, null when the tab is missing or fails.
+  const [matches, setMatches] = useState<Match[] | null>(demo ? parseMatches(demoMatchesFor(window.location.search, todayIso())) : null);
+  const [matchAnswers, setMatchAnswers] = useState<ReadonlyMap<string, MatchChoice>>(new Map()); // this session, by Match id
+  const loadMatches = useCallback(async () => {
+    if (demo || !signedIn) return;
+    try { const g = await reader.readMatches(); setMatches(g ? parseMatches(g) : null); }
+    catch { setMatches(null); }
+  }, [demo, signedIn]);
+  useEffect(() => { void loadMatches(); }, [loadMatches]);
   const loadUpcoming = useCallback(async () => {
     if (demo || !signedIn) return;
     try { setUpcoming(parseUpcoming(await reader.readUpcoming())); }
@@ -90,19 +99,19 @@ export function App() {
     setBusy(true); setError("");
     try {
       setTabs(await reader.read(force));
-      if (force) await Promise.all([loadOutbox(), loadUpcoming()]);
+      if (force) await Promise.all([loadOutbox(), loadUpcoming(), loadMatches()]);
     } catch (e) {
       if (e instanceof AuthExpiredError) { setSignedIn(false); setTabs(null); }
       setError(e instanceof Error ? e.message : "Something went wrong");
     } finally { setBusy(false); }
-  }, [loadOutbox, loadUpcoming]);
+  }, [loadOutbox, loadUpcoming, loadMatches]);
 
   const doSignIn = async () => {
     setError("");
     try { await signIn(); setSignedIn(true); await load(true); }
     catch (e) { setError(e instanceof Error ? e.message : "Sign-in failed"); }
   };
-  const doSignOut = () => { signOut(); reader.clear(); setNameMap(NO_NAMES); setTabs(null); setSignedIn(false); setSent([]); setOutbox(null); setRequested(new Map()); setApprovalSent(null); setFiled(new Set()); setUpcoming([]); setRequestedVisits(new Set()); setMarked(new Map()); };
+  const doSignOut = () => { signOut(); reader.clear(); setNameMap(NO_NAMES); setTabs(null); setSignedIn(false); setSent([]); setOutbox(null); setRequested(new Map()); setApprovalSent(null); setFiled(new Set()); setUpcoming([]); setRequestedVisits(new Set()); setMarked(new Map()); setMatches(null); setMatchAnswers(new Map()); };
 
   const model = useMemo(() => (tabs ? buildModel(tabs, todayIso(), sent) : null), [tabs, sent]);
 
@@ -141,6 +150,15 @@ export function App() {
     if (!who) return;
     await appendSend(sendRow(action, i.number, "", who));
     setMarked((m) => new Map(m).set(i.number, action));
+  };
+
+  // A deposit match answered: one appended App Decisions row, `match:<id>` + APPROVE or REJECT. Python validates it and
+  // fills the Status column. The card stays answered for the session (a second tap cannot append a second row). Demo writes nothing.
+  const answerMatch = async (m: Match, choice: MatchChoice) => {
+    if (!who || matchAnswers.has(m.id)) return;
+    try { if (!demo) await reader.appendDecision(matchDecisionRow(m.id, choice, "", who)); }
+    catch (e) { if (e instanceof AuthExpiredError) { setSignedIn(false); setTabs(null); } throw e; }
+    setMatchAnswers((a) => new Map(a).set(m.id, choice));
   };
 
   // Payroll run approve or revoke: one appended row on App Approvals. The app pays and files nothing.
@@ -213,7 +231,7 @@ export function App() {
       </header>
       {error && <p className="warn pad">{error}</p>}
       <main className="content">
-        {screen === "today" && <TodayScreen m={model} openTx={setBooking} goUnpaid={() => go("ar")} goTransactions={goTx} goReports={() => go("reports")} goDeadlines={() => go("deadlines")} goPayroll={() => go("payroll")} />}
+        {screen === "today" && <TodayScreen m={model} openTx={setBooking} goUnpaid={() => go("ar")} goTransactions={goTx} goReports={() => go("reports")} goDeadlines={() => go("deadlines")} goPayroll={() => go("payroll")} matchCount={matches ? matchesWaiting(matches, matchAnswers, model.latest) : 0} />}
         {screen === "tx" && <TransactionsScreen m={model} filter={filter} setFilter={setFilter} openTx={setBooking} />}
         {screen === "clients" && <ClientsScreen m={model} />}
         {screen === "deadlines" && (
@@ -231,7 +249,8 @@ export function App() {
             requestedVisits={requestedVisits} onDraftVisit={draftVisit}
             outbox={outbox} outboxNote={outboxNote} requested={requested}
             onSend={(i) => requestSend("SEND", i)} onCancel={(i) => requestSend("CANCEL", i)} onCloseOut={closeOut}
-            marked={marked} onMark={markInvoice} />
+            marked={marked} onMark={markInvoice}
+            matches={matches} matchAnswers={matchAnswers} latest={model.latest} onMatchAnswer={answerMatch} />
         )}
       </main>
       <nav>

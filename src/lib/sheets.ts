@@ -5,10 +5,11 @@
 // `App Outbox` (invoice emails, with recipients) is read like Customer Codes: names on only, memory only.
 // `App Upcoming` (expected invoices, codes only) is read on its own, names on or off, so a missing tab (before the
 // script first publishes it) cannot fail the main batch.
+// `App Matches` (proposed deposit matches, codes only) is read on its own too: null when missing.
 // Writes are appended rows to four input tabs: `App Decisions` (bookings), `App Send` (invoice approvals),
 // `App Approvals` (payroll run approve or revoke) and `App Filings` (a filing recorded as done). The app
 // pays, files and submits nothing; Python reads these rows at the next publish.
-import type { Grid } from "./parse.ts";
+import { MATCHES_TAB, type Grid, type MatchChoice } from "./parse.ts";
 import { FILINGS_TAB } from "./filings.ts";
 import { CODES_TAB } from "./names.ts";
 import { OUTBOX_TAB, SEND_TAB } from "./outbox.ts";
@@ -71,6 +72,12 @@ export function decisionRow(entry: string, account: string, note: string, who: W
   return [entry, acct, note.trim(), who, now.toISOString()];
 }
 
+// A deposit match answered from the app: [match:<Match id>, APPROVE | REJECT, Note, Who, When] on App Decisions
+// (the same appendDecision writer). Python fills column F (Status); the app never writes it.
+export function matchDecisionRow(matchId: string, choice: MatchChoice, note: string, who: Who, now: Date = new Date()): string[] {
+  return [`match:${matchId.trim()}`, choice, note.trim(), who, now.toISOString()];
+}
+
 export function createReader(
   getToken: () => string | null,
   fetchFn: FetchFn = (u, i) => fetch(u, i),
@@ -122,6 +129,19 @@ export function createReader(
       const res = await fetchFn(tabUrl(sheetId, UPCOMING_TAB), { headers: auth() });
       if (res.status === 401) throw new AuthExpiredError("Sign-in expired");
       return res.ok ? (((await res.json()) as { values?: Grid }).values ?? []) : [];
+    },
+    // Proposed deposit matches (generated tab, codes only). The tab may not exist yet: a missing tab, any non-auth failure
+    // or an unreadable body = null (nothing shown). Only an expired sign-in throws.
+    async readMatches(): Promise<Grid | null> {
+      const headers = auth();
+      try {
+        const res = await fetchFn(tabUrl(sheetId, MATCHES_TAB), { headers });
+        if (res.status === 401) throw new AuthExpiredError("Sign-in expired");
+        return res.ok ? (((await res.json()) as { values?: Grid }).values ?? []) : null;
+      } catch (e) {
+        if (e instanceof AuthExpiredError) throw e;
+        return null;
+      }
     },
     // Writes: one appended row on App Decisions (a booking), App Send (an invoice approval), App Approvals
     // (a payroll run approve/revoke) or App Filings (a filing recorded as done).
