@@ -81,7 +81,11 @@ nav button.on { color: var(--accent); font-weight: 600; }
 .figure { margin: 0 0 16px; }
 .figure figcaption { font-weight: 600; margin-bottom: 4px; }
 .chart { width: 100%; height: auto; display: block; }
-.chart.spark { height: 44px; margin: 4px 0; }
+.chart .axis.zero { stroke: var(--muted); stroke-dasharray: 3 3; }
+.chart .vlabel { font-size: 9px; font-weight: 600; opacity: .8; }
+.figure.profit { margin: 6px 0 4px; }
+.figure .readout { min-height: 1.3em; margin-top: 2px; }
+.chart rect[fill="transparent"] { cursor: pointer; }
 .chart .axis { stroke: var(--line); stroke-width: 1; }
 .chart .tick { fill: var(--muted); font-size: 9px; }
 .legend { display: flex; flex-wrap: wrap; gap: 4px 12px; font-size: .8rem; color: var(--muted); }

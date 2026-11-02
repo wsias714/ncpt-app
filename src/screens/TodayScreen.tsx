@@ -1,10 +1,10 @@
 import { useState } from "react";
-import { Sparkline } from "../components/Chart.tsx";
+import { ProfitChart } from "../components/Chart.tsx";
 import { PeriodToggle } from "../components/PeriodToggle.tsx";
 import { TxRow } from "../components/TxRow.tsx";
 import { band, dayLabel, daysLabel, nextDeadline } from "../lib/deadlines.ts";
 import type { Model } from "../lib/model.ts";
-import { invoiceStats, money, needsBooking, periodMonths, PERIOD_LABEL, recentTransactions, totals, wagesTotal, type Period, type Tx } from "../lib/parse.ts";
+import { invoiceStats, money, needsBooking, payrollSwingNote, periodWindow, profitPoints, recentTransactions, totals, wagesTotal, type Period, type Tx } from "../lib/parse.ts";
 
 interface Props { m: Model; openTx: (t: Tx) => void; goUnpaid: () => void; goTransactions: (reviewOnly: boolean) => void; goReports: () => void; goDeadlines: () => void; goPayroll: () => void }
 
@@ -24,12 +24,15 @@ const APPROVAL_CLASS = { approved: "done", stale: "month", none: "blocked", revo
 export function TodayScreen({ m, openTx, goUnpaid, goTransactions, goReports, goDeadlines, goPayroll }: Props) {
   const s = m.summary;
   const [period, setPeriod] = useState<Period>("1M");
-  const t = totals(periodMonths(m.monthly, s.asOf || m.today, period));
+  const asOf = s.asOf || m.today;
+  const win = periodWindow(m.monthly, asOf, period);
+  const t = totals(win.rows);
+  const swing = payrollSwingNote(win.rows, period);
   const inv = invoiceStats(m.invoices, m.today);
   const wages = wagesTotal(s);
   const need = m.txs.filter((t) => needsBooking(t, m.latest));
   const recent = recentTransactions(m.txs, m.today);
-  const spark = m.monthly.slice(-12).map((r) => r.netCash);
+  const points = profitPoints(m.monthly, asOf, period);
   const next = nextDeadline(m.deadlines);
   const needCount = s.needsBooking ?? need.length;
 
@@ -47,14 +50,22 @@ export function TodayScreen({ m, openTx, goUnpaid, goTransactions, goReports, go
       <h2>Today <span className="muted">as of {s.asOf || "?"}</span></h2>
 
       <div className="card hero">
-        <div className="row"><div className="label">Profit, {PERIOD_LABEL[period].toLowerCase()} (cash basis)</div><PeriodToggle value={period} onChange={setPeriod} /></div>
-        <div className={"big" + (t.net < 0 ? " warn" : "")}>{money(t.net)}</div>
-        <Sparkline values={spark} label="Monthly cash profit, last 12 months" />
-        <div className="before">
-          <div className="label">Before owner pay <span className="muted">(net wages and 401k are owner income)</span></div>
-          <div className="big small">{money(t.beforeOwnerPay)}</div>
-          <div className="row sub"><span>Net wages {money(t.netWages)}</span><span>401k {money(t.k401)}</span></div>
-        </div>
+        <div className="row"><div className="label">Profit</div><PeriodToggle value={period} onChange={setPeriod} /></div>
+        <div className="sub window">{win.label} (cash basis)</div>
+        {win.empty ? (
+          <div className="big small muted">{period === "1M" ? "Nothing booked yet this month" : "No data for this period"}</div>
+        ) : (
+          <>
+            <div className={"big" + (t.net < 0 ? " warn" : "")}>{money(t.net)}</div>
+            <div className="before">
+              <div className="label">Before owner pay <span className="muted">(net wages and 401k are owner income)</span></div>
+              <div className="big small">{money(t.beforeOwnerPay)}</div>
+              <div className="row sub"><span>Net wages {money(t.netWages)}</span><span>401k {money(t.k401)}</span></div>
+              {swing && <div className="sub">{swing}</div>}
+            </div>
+          </>
+        )}
+        <ProfitChart points={points} title="Monthly profit before and after owner pay" />
       </div>
 
       {next && (

@@ -4,7 +4,7 @@ import { PeriodToggle } from "../components/PeriodToggle.tsx";
 import { HISTORY_YEARS, type Model } from "../lib/model.ts";
 import {
   beforeOwnerPay, compareYears, money, monthlyYears, ownerPayInMonths, PERIOD_LABEL, TREND_RANGES, trendMonths,
-  hasTransactionsForCode, type Period, type TrendRange,
+  hasTransactionsForCode, periodWindow, type Period, type TrendRange,
 } from "../lib/parse.ts";
 
 type Seg = "is" | "bs" | "trends" | "yoy";
@@ -36,14 +36,21 @@ function Statement({ m, filterByCode, openInvoices }: Props) {
   // Columns summed: single months for 1M/3M/6M or a picked month, else the year-to-date column.
   const accrual = basis === "accrual";
   const ytdCol = L + (accrual ? 1 : 0);
-  const n = Math.min(Number(period[0]), L);
-  const monthCols = accrual ? [] : pick !== "" ? [Math.min(Number(pick), L - 1)] : period === "YTD" ? [] : Array.from({ length: n }, (_, i) => L - n + i);
-  const cols = monthCols.length ? monthCols : [ytdCol];
+  // Same rule as the rest of the app: 3M/6M/12M are the last N COMPLETE months (the current year's last column is the
+  // open month); 1M is that open month so far. A past year is all complete.
+  const done = past ? L : Math.max(0, L - 1);
+  const n = period === "1M" || period === "YTD" ? 1 : Math.min(Number(period.slice(0, -1)), done);
+  const monthCols = accrual ? [] : pick !== "" ? [Math.min(Number(pick), L - 1)] : period === "YTD" ? []
+    : period === "1M" ? [L - 1] : Array.from({ length: n }, (_, i) => done - n + i);
+  const wholeYear = accrual || (period === "YTD" && pick === "");
+  const cols = wholeYear ? [ytdCol] : monthCols; // no full months yet: nothing to sum
   const at = (v: number[]) => cols.reduce((a, c) => a + (v[c] ?? 0), 0);
-  const ownerPay = ownerPayInMonths(m.monthly, year, monthCols.length ? monthCols.map((c) => c + 1) : undefined);
+  const ownerPay = ownerPayInMonths(m.monthly, year, wholeYear ? undefined : monthCols.map((c) => c + 1));
   const whole = past ? `Full year ${year}` : "Year to date";
   const title = accrual ? whole : pick !== "" ? `${p.months[Number(pick)]} ${year}` : period === "YTD" ? whole
-    : past ? (period === "1M" ? `${p.months[L - 1]} ${year}` : `Last ${n} months of ${year}`) : PERIOD_LABEL[period];
+    : period === "1M" ? (past ? `${p.months[L - 1]} ${year}` : PERIOD_LABEL[period])
+    : monthCols.length === 0 ? "No full months yet"
+    : `${p.months[monthCols[0]]} to ${p.months[monthCols[monthCols.length - 1]]} ${year} (${monthCols.length} full months)`;
   const years = statementYears(m, (y) => !!m.pnlHistory[y]);
   return (
     <>
@@ -130,10 +137,12 @@ function Trends({ m }: { m: Model }) {
   const asOf = m.summary.asOf || m.today;
   const picked = trendMonths(m.monthly, asOf, range);
   const rows = picked.length >= 2 ? picked : m.monthly.filter((r) => r.month <= asOf.slice(0, 7)).slice(-2); // a chart needs two months
+  const win = range === "ALL" ? null : periodWindow(m.monthly, asOf, range);
   const labels = rows.map((r) => r.month);
   return (
     <>
       <PeriodToggle value={range} onChange={setRange} options={TREND_RANGES} />
+      <p className="sub">{win ? win.label : "Every full month published"}{picked.length < 2 ? "; showing the last two months so there is something to draw" : ""}.</p>
       <BarChart title="Income and expense by month" labels={labels} series={[
         { name: "Income", color: "var(--accent)", values: rows.map((r) => r.income) },
         { name: "Expense", color: "var(--warn)", values: rows.map((r) => r.expense) },
@@ -159,7 +168,7 @@ function YearOverYear({ m }: { m: Model }) {
   const [picked, setPicked] = useState(years.includes(cur) ? cur : years[0] ?? cur);
   const [period, setPeriod] = useState<Period>("YTD");
   const y = picked;
-  const c = compareYears(m.monthly, y === cur ? m.summary.asOf || m.today : `${y}-12-31`, period);
+  const c = compareYears(m.monthly, y === cur ? m.summary.asOf || m.today : `${y}-12-31`, period, { asOfComplete: y !== cur });
   const prior = String(Number(y) - 1);
   const lines: [string, number, number][] = [
     ["Income", c.current.income, c.prior.income],
@@ -174,8 +183,10 @@ function YearOverYear({ m }: { m: Model }) {
         <YearSelect years={years} value={y} onChange={setPicked} />
         <PeriodToggle value={period} onChange={setPeriod} />
       </div>
-      <p className="sub">{c.currentLabel} against {c.priorLabel}.</p>
-      {c.priorMonths === 0 ? (
+      <p className="sub">{c.current.months === 0 ? PERIOD_LABEL[period] : `${c.currentLabel} against ${c.priorLabel}`}.</p>
+      {c.current.months === 0 ? (
+        <p className="muted">Nothing booked yet for this period.</p>
+      ) : c.priorMonths === 0 ? (
         <p className="muted">No {prior} data for these months.</p>
       ) : (
         <>

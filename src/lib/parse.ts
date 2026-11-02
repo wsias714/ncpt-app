@@ -410,26 +410,111 @@ export function parsePnl(grid: Grid): Pnl {
 
 // ---- Time periods and year over year -------------------------------------------------------------
 
-export type Period = "1M" | "3M" | "6M" | "YTD";
-export const PERIODS: Period[] = ["1M", "3M", "6M", "YTD"];
-export const PERIOD_LABEL: Record<Period, string> = { "1M": "This month", "3M": "Last 3 months", "6M": "Last 6 months", YTD: "Year to date" };
+export type Period = "1M" | "3M" | "6M" | "12M" | "YTD";
+export const PERIODS: Period[] = ["1M", "3M", "6M", "12M", "YTD"];
+export const PERIOD_LABEL: Record<Period, string> = {
+  "1M": "This month so far", "3M": "Last 3 full months", "6M": "Last 6 full months", "12M": "Last 12 full months", YTD: "Year to date",
+};
 
-// Months in the period ending at the as-of month (the open month counts, to date). Rows sorted ascending.
-export function periodMonths(monthly: MonthRow[], asOf: string, p: Period): MonthRow[] {
-  const upto = (asOf.slice(0, 7) || monthly[monthly.length - 1]?.month || "");
-  const rows = monthly.filter((r) => r.month <= upto);
-  if (p === "YTD") return rows.filter((r) => r.month.startsWith(upto.slice(0, 4) + "-"));
-  return rows.slice(-Number(p[0]));
+// The windows: 3M, 6M and 12M are the last N COMPLETE months, ending the month before the as-of month (the as-of
+// month is still open, and a just-started month would otherwise count as a zero). 1M is the open month to date.
+// YTD is January through the as-of month to date. A past year's report passes `asOfComplete` so its last month
+// (December) counts as complete.
+export interface PeriodOpts { asOfComplete?: boolean }
+
+const MONTH_NAMES = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+
+export function addMonths(month: string, delta: number): string {
+  const idx = Number(month.slice(0, 4)) * 12 + (Number(month.slice(5, 7)) - 1) + delta;
+  return `${Math.floor(idx / 12)}-${String((idx % 12) + 1).padStart(2, "0")}`;
 }
 
-// Trends can also look further back: the last 12 months, or every month published.
-export type TrendRange = Period | "12M" | "ALL";
+/** The month that is open ("so far") on the as-of date. */
+export function asOfMonth(monthly: MonthRow[], asOf: string): string {
+  return asOf.slice(0, 7) || monthly[monthly.length - 1]?.month || "";
+}
+
+/** A month with nothing booked in it (all five figures zero). */
+export const isEmptyMonth = (r: MonthRow): boolean => !r.income && !r.expense && !r.netCash && !r.netWages && !r.k401;
+
+const monthLabel = (m: string): string => `${MONTH_NAMES[Number(m.slice(5, 7)) - 1] ?? m} ${m.slice(0, 4)}`;
+const longDate = (iso: string): string => {
+  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(iso);
+  return m ? `${MONTH_NAMES[Number(m[2]) - 1]} ${Number(m[3])}, ${m[1]}` : iso;
+};
+
+export interface PeriodWindow {
+  rows: MonthRow[]; // ascending; only months that have a published row
+  start: string; end: string; // the calendar window actually covered ("" when empty)
+  label: string; // "Aug to Oct 2026 (3 full months)"
+  empty: boolean; // 1M with nothing booked yet, or no rows
+}
+
+/** Where a period starts and ends: calendar months, before they are matched to published rows. */
+function calendarWindow(monthly: MonthRow[], asOf: string, p: Period, o: PeriodOpts = {}): { start: string; end: string } {
+  const open = asOfMonth(monthly, asOf);
+  if (!open) return { start: "", end: "" };
+  if (p === "1M") return { start: open, end: open };
+  if (p === "YTD") return { start: `${open.slice(0, 4)}-01`, end: open };
+  const end = o.asOfComplete ? open : addMonths(open, -1);
+  return { start: addMonths(end, 1 - Number(p.slice(0, -1))), end };
+}
+
+export function periodWindow(monthly: MonthRow[], asOf: string, p: Period, o: PeriodOpts = {}): PeriodWindow {
+  const cal = calendarWindow(monthly, asOf, p, o);
+  let rows = monthly.filter((r) => r.month >= cal.start && r.month <= cal.end);
+  if (p === "1M") rows = rows.filter((r) => !isEmptyMonth(r));
+  const first = rows[0]?.month ?? "", last = rows[rows.length - 1]?.month ?? "";
+  if (p === "1M") {
+    const open = cal.end;
+    return { rows, start: open, end: open, empty: rows.length === 0, label: o.asOfComplete ? monthLabel(open) : rows.length ? "This month so far" : "Nothing booked yet this month" };
+  }
+  if (p === "YTD") {
+    return { rows, start: cal.start, end: cal.end, empty: rows.length === 0, label: `Year to date, through ${longDate(asOf || `${cal.end}-01`)}` };
+  }
+  if (!rows.length) return { rows, start: "", end: "", empty: true, label: "No full months yet" };
+  // Cover the months actually available: a young ledger has fewer than N full months.
+  const start = first > cal.start ? first : cal.start;
+  const count = Number(last.slice(0, 4)) * 12 + Number(last.slice(5, 7)) - (Number(start.slice(0, 4)) * 12 + Number(start.slice(5, 7))) + 1;
+  const sameYear = start.slice(0, 4) === last.slice(0, 4);
+  const span = count === 1 ? monthLabel(last)
+    : sameYear ? `${MONTH_NAMES[Number(start.slice(5, 7)) - 1]} to ${monthLabel(last)}` : `${monthLabel(start)} to ${monthLabel(last)}`;
+  const short = count < Number(p.slice(0, -1)) ? ` (${count} full ${count === 1 ? "month" : "months"}, fewer than ${p.slice(0, -1)} so far)` : ` (${count} full months)`;
+  return { rows, start, end: last, empty: false, label: span + short };
+}
+
+// Months in the period, ascending.
+export function periodMonths(monthly: MonthRow[], asOf: string, p: Period, o: PeriodOpts = {}): MonthRow[] {
+  return periodWindow(monthly, asOf, p, o).rows;
+}
+
+// Trends can also look at every month published (complete months only; the open month is a partial bar).
+export type TrendRange = Period | "ALL";
 export const TREND_RANGES: TrendRange[] = ["3M", "6M", "YTD", "12M", "ALL"];
 export function trendMonths(monthly: MonthRow[], asOf: string, r: TrendRange): MonthRow[] {
-  if (r !== "12M" && r !== "ALL") return periodMonths(monthly, asOf, r);
-  const upto = asOf.slice(0, 7) || monthly[monthly.length - 1]?.month || "";
-  const rows = monthly.filter((x) => x.month <= upto);
-  return r === "ALL" ? rows : rows.slice(-12);
+  if (r !== "ALL") return periodMonths(monthly, asOf, r);
+  const open = asOfMonth(monthly, asOf);
+  return monthly.filter((x) => x.month < open);
+}
+
+// What the Today chart plots for a horizon: the months of the window, oldest first, then the open month ("so
+// far") when it has anything booked. 1M plots the last 6 complete months (there is no window of its own).
+export interface ProfitPoint { month: string; before: number; after: number; open: boolean }
+
+export function profitPoints(monthly: MonthRow[], asOf: string, p: Period): ProfitPoint[] {
+  const open = asOfMonth(monthly, asOf);
+  const complete = p === "1M" ? periodMonths(monthly, asOf, "6M")
+    : p === "YTD" ? periodMonths(monthly, asOf, "YTD").filter((r) => r.month < open)
+    : periodMonths(monthly, asOf, p);
+  const cur = monthly.find((r) => r.month === open && !isEmptyMonth(r));
+  const pt = (r: MonthRow, isOpen: boolean): ProfitPoint => ({ month: r.month, before: round2(r.netCash + r.netWages + r.k401), after: r.netCash, open: isOpen });
+  return [...complete.map((r) => pt(r, false)), ...(cur ? [pt(cur, true)] : [])];
+}
+
+/** A quarterly payroll month in a short window makes single months swing: say so. */
+export function payrollSwingNote(rows: MonthRow[], p: Period): string {
+  const short = p === "1M" || (p === "YTD" && rows.length < 3); // 3M and up are not short by design
+  return short && rows.some((r) => r.netWages > 0) ? "Payroll is paid quarterly, so single months swing; use 3M or longer." : "";
 }
 
 // Years that have monthly rows, newest first.
@@ -454,8 +539,8 @@ const prevYear = (month: string) => `${Number(month.slice(0, 4)) - 1}${month.sli
 
 // The same months one year earlier. priorMonths counts how many of them have data (the ledger starts
 // 2026-01, so there is no prior year until 2027).
-export function compareYears(monthly: MonthRow[], asOf: string, p: Period): YearCompare {
-  const cur = periodMonths(monthly, asOf, p);
+export function compareYears(monthly: MonthRow[], asOf: string, p: Period, o: PeriodOpts = {}): YearCompare {
+  const cur = periodMonths(monthly, asOf, p, o);
   const prior = cur.map((r) => monthly.find((x) => x.month === prevYear(r.month))).filter((r): r is MonthRow => !!r);
   const label = (rows: string[]) => (rows.length === 0 ? "" : rows.length === 1 ? rows[0] : `${rows[0]} to ${rows[rows.length - 1]}`);
   return { current: totals(cur), prior: totals(prior), priorMonths: prior.length, currentLabel: label(cur.map((r) => r.month)), priorLabel: label(cur.map((r) => prevYear(r.month))) };
