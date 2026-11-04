@@ -186,6 +186,18 @@ describe("statements", () => {
     expect(b.sections[2].rows.map((r) => r.name)).toEqual(["Owner equity", "Net income, current year"]);
     expect(parseBalanceSheet([]).ends).toEqual([]);
   });
+  it("keeps the shareholder basis block as a section without a total", () => {
+    const grid = [
+      ["Balance sheet 2030 (accrual), month ends through 2030-02-28"], [], ["Code", "Account", "2030-01-31", "2030-02-28"],
+      ["Assets"], ["1000", "Checking", 100, 200], ["", "Total asset", 100, 200], [],
+      ["Shareholder basis (tax, cash; an estimate, see the basis trace)"],
+      ["", "Stock basis, beginning of year", 1000, 1000], ["", "Stock basis, period end", 1050, 1075.5],
+    ];
+    const b = parseBalanceSheet(grid);
+    expect(b.sections.map((s) => s.title)).toEqual(["Assets", "Shareholder basis (tax, cash; an estimate, see the basis trace)"]);
+    expect(b.sections[1].total).toEqual([]);
+    expect(b.sections[1].rows[1]).toMatchObject({ name: "Stock basis, period end", values: [1050, 1075.5] });
+  });
 });
 
 describe("helpers", () => {

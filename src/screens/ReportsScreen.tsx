@@ -123,7 +123,7 @@ function Balance({ m }: { m: Model }) {
             {s.rows.filter((r) => r.values[i] !== 0).map((r) => (
               <li key={r.code + r.name} className="row"><span>{r.name}</span><span>{money(r.values[i])}</span></li>
             ))}
-            <li className="row total"><strong>Total {s.title.toLowerCase()}</strong><strong>{money(s.total[i] ?? 0)}</strong></li>
+            {s.total.length > 0 && <li className="row total"><strong>Total {s.title.toLowerCase()}</strong><strong>{money(s.total[i] ?? 0)}</strong></li>}
           </ul>
         </div>
       ))}
