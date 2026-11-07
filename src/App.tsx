@@ -7,6 +7,7 @@ import { demoActive, demoMatchesFor, demoOutbox, demoOutboxOn, demoTabsFor, demo
 import { buildModel } from "./lib/model.ts";
 import { parseOutbox, sendRow, type MarkAction, type OutboxItem, type SendAction } from "./lib/outbox.ts";
 import { matchesWaiting, NO_FILTER, parseMatches, type ArItem, type Decision, type Match, type MatchChoice, type Tx, type TxFilter } from "./lib/parse.ts";
+import { parseOnboarding, type OnboardingRow } from "./lib/onboarding.ts";
 import { pacificToday, parseUpcoming, type UpcomingRow } from "./lib/upcoming.ts";
 import { approvalRow, type ApprovalAction, type PayrollRun } from "./lib/payroll.ts";
 import { AuthExpiredError, createReader, decisionRow, matchDecisionRow, type Tabs } from "./lib/sheets.ts";
@@ -72,6 +73,14 @@ export function App() {
     catch { setMatches(null); }
   }, [demo, signedIn]);
   useEffect(() => { void loadMatches(); }, [loadMatches]);
+  // Clients that need a person (App Onboarding, codes only): null when the tab is missing or fails.
+  const [onboarding, setOnboarding] = useState<OnboardingRow[] | null>(null);
+  const loadOnboarding = useCallback(async () => {
+    if (demo || !signedIn) return;
+    try { const g = await reader.readOnboarding(); setOnboarding(g ? parseOnboarding(g) : null); }
+    catch { setOnboarding(null); }
+  }, [demo, signedIn]);
+  useEffect(() => { void loadOnboarding(); }, [loadOnboarding]);
   const loadUpcoming = useCallback(async () => {
     if (demo || !signedIn) return;
     try { setUpcoming(parseUpcoming(await reader.readUpcoming())); }
@@ -99,19 +108,19 @@ export function App() {
     setBusy(true); setError("");
     try {
       setTabs(await reader.read(force));
-      if (force) await Promise.all([loadOutbox(), loadUpcoming(), loadMatches()]);
+      if (force) await Promise.all([loadOutbox(), loadUpcoming(), loadMatches(), loadOnboarding()]);
     } catch (e) {
       if (e instanceof AuthExpiredError) { setSignedIn(false); setTabs(null); }
       setError(e instanceof Error ? e.message : "Something went wrong");
     } finally { setBusy(false); }
-  }, [loadOutbox, loadUpcoming, loadMatches]);
+  }, [loadOutbox, loadUpcoming, loadMatches, loadOnboarding]);
 
   const doSignIn = async () => {
     setError("");
     try { await signIn(); setSignedIn(true); await load(true); }
     catch (e) { setError(e instanceof Error ? e.message : "Sign-in failed"); }
   };
-  const doSignOut = () => { signOut(); reader.clear(); setNameMap(NO_NAMES); setTabs(null); setSignedIn(false); setSent([]); setOutbox(null); setRequested(new Map()); setApprovalSent(null); setFiled(new Set()); setUpcoming([]); setRequestedVisits(new Set()); setMarked(new Map()); setMatches(null); setMatchAnswers(new Map()); };
+  const doSignOut = () => { signOut(); reader.clear(); setNameMap(NO_NAMES); setTabs(null); setSignedIn(false); setSent([]); setOutbox(null); setRequested(new Map()); setApprovalSent(null); setFiled(new Set()); setUpcoming([]); setRequestedVisits(new Set()); setMarked(new Map()); setMatches(null); setOnboarding(null); setMatchAnswers(new Map()); };
 
   const model = useMemo(() => (tabs ? buildModel(tabs, todayIso(), sent) : null), [tabs, sent]);
 
@@ -231,7 +240,7 @@ export function App() {
       </header>
       {error && <p className="warn pad">{error}</p>}
       <main className="content">
-        {screen === "today" && <TodayScreen m={model} openTx={setBooking} goUnpaid={() => go("ar")} goTransactions={goTx} goReports={() => go("reports")} goDeadlines={() => go("deadlines")} goPayroll={() => go("payroll")} matchCount={matches ? matchesWaiting(matches, matchAnswers, model.latest) : 0} />}
+        {screen === "today" && <TodayScreen m={model} openTx={setBooking} goUnpaid={() => go("ar")} goTransactions={goTx} goReports={() => go("reports")} goDeadlines={() => go("deadlines")} goPayroll={() => go("payroll")} matchCount={matches ? matchesWaiting(matches, matchAnswers, model.latest) : 0} onboarding={onboarding ?? []} />}
         {screen === "tx" && <TransactionsScreen m={model} filter={filter} setFilter={setFilter} openTx={setBooking} />}
         {screen === "clients" && <ClientsScreen m={model} />}
         {screen === "deadlines" && (

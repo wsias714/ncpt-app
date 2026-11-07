@@ -12,6 +12,7 @@
 import { MATCHES_TAB, type Grid, type MatchChoice } from "./parse.ts";
 import { FILINGS_TAB } from "./filings.ts";
 import { CODES_TAB } from "./names.ts";
+import { ONBOARDING_TAB } from "./onboarding.ts";
 import { OUTBOX_TAB, SEND_TAB } from "./outbox.ts";
 import { APPROVALS_TAB } from "./payroll.ts";
 import { UPCOMING_TAB } from "./upcoming.ts";
@@ -136,6 +137,18 @@ export function createReader(
       const headers = auth();
       try {
         const res = await fetchFn(tabUrl(sheetId, MATCHES_TAB), { headers });
+        if (res.status === 401) throw new AuthExpiredError("Sign-in expired");
+        return res.ok ? (((await res.json()) as { values?: Grid }).values ?? []) : null;
+      } catch (e) {
+        if (e instanceof AuthExpiredError) throw e;
+        return null;
+      }
+    },
+    // Clients that need a person (generated tab, codes only). Missing tab or any non-auth failure = null (nothing shown).
+    async readOnboarding(): Promise<Grid | null> {
+      const headers = auth();
+      try {
+        const res = await fetchFn(tabUrl(sheetId, ONBOARDING_TAB), { headers });
         if (res.status === 401) throw new AuthExpiredError("Sign-in expired");
         return res.ok ? (((await res.json()) as { values?: Grid }).values ?? []) : null;
       } catch (e) {

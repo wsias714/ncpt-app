@@ -4,9 +4,11 @@ import { PeriodToggle } from "../components/PeriodToggle.tsx";
 import { TxRow } from "../components/TxRow.tsx";
 import { band, dayLabel, daysLabel, nextDeadline } from "../lib/deadlines.ts";
 import type { Model } from "../lib/model.ts";
+import { onboardingLine, type OnboardingRow } from "../lib/onboarding.ts";
+import { useLabel } from "../components/NamesContext.tsx";
 import { invoiceStats, money, needsBooking, payrollSwingNote, periodWindow, profitPoints, recentTransactions, totals, wagesTotal, type Period, type Tx } from "../lib/parse.ts";
 
-interface Props { m: Model; openTx: (t: Tx) => void; goUnpaid: () => void; goTransactions: (reviewOnly: boolean) => void; goReports: () => void; goDeadlines: () => void; goPayroll: () => void; matchCount?: number }
+interface Props { m: Model; openTx: (t: Tx) => void; goUnpaid: () => void; goTransactions: (reviewOnly: boolean) => void; goReports: () => void; goDeadlines: () => void; goPayroll: () => void; matchCount?: number; onboarding?: OnboardingRow[] }
 
 function Stat({ label, value, sub, warn }: { label: string; value: string; sub?: string; warn?: boolean }) {
   return (
@@ -21,7 +23,8 @@ function Stat({ label, value, sub, warn }: { label: string; value: string; sub?:
 const APPROVAL_WORD = { approved: "approved", stale: "approval stale", none: "not approved", revoked: "revoked" } as const;
 const APPROVAL_CLASS = { approved: "done", stale: "month", none: "blocked", revoked: "overdue" } as const;
 
-export function TodayScreen({ m, openTx, goUnpaid, goTransactions, goReports, goDeadlines, goPayroll, matchCount = 0 }: Props) {
+export function TodayScreen({ m, openTx, goUnpaid, goTransactions, goReports, goDeadlines, goPayroll, matchCount = 0, onboarding = [] }: Props) {
+  const label = useLabel();
   const s = m.summary;
   const [period, setPeriod] = useState<Period>("1M");
   const asOf = s.asOf || m.today;
@@ -67,6 +70,17 @@ export function TodayScreen({ m, openTx, goUnpaid, goTransactions, goReports, go
         )}
         <ProfitChart points={points} title="Monthly profit before and after owner pay" />
       </div>
+
+      {onboarding.length > 0 && (
+        <div className="card" aria-label="Clients to set up">
+          <div className="label">Clients to set up ({onboarding.length})</div>
+          <ul className="list">
+            {onboarding.slice(0, 8).map((r) => <li key={r.code}>{onboardingLine(r, label)}</li>)}
+          </ul>
+          {onboarding.length > 8 && <div className="muted">and {onboarding.length - 8} more</div>}
+          <div className="muted">Settle these in the Client Roster tab of the NCPT Books sheet.</div>
+        </div>
+      )}
 
       {matchCount > 0 && (
         <button className="matchwait" onClick={goUnpaid}>{matchCount} {matchCount === 1 ? "deposit" : "deposits"} waiting for your OK</button>
