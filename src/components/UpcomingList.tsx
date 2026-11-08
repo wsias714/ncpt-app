@@ -41,7 +41,7 @@ function Item({ r, requested, onCreate }: { r: UpcomingRow; requested: boolean; 
         <div className="sub">Bill in Wave (before the app's start date).</div>
       ) : requested ? (
         <p className="ok small">Requested; {handOver(r)
-          ? "it appears under Needs attention in about a minute (Mark issued once handed over), tap Refresh."
+          ? "the draft is made within a minute and shows under Needs attention within about 15 minutes (Mark issued once handed over), tap Refresh."
           : "the preview appears under Ready to send in about a minute, tap Refresh."}</p>
       ) : r.state === "READY" || r.state === "UPCOMING" ? (
         <div className="todoact">
